@@ -545,7 +545,7 @@
             cbTheme.Items.AddRange(new object[] { resources.GetString("cbTheme.Items"), resources.GetString("cbTheme.Items1") });
             resources.ApplyResources(cbTheme, "cbTheme");
             cbTheme.Name = "cbTheme";
-            cbTheme.SelectedIndexChanged += cbTimeViewMode_SelectedIndexChanged;
+
             // 
             // cbLanguage
             // 

@@ -134,12 +134,10 @@ namespace Vivy
             PanelElementTextColor = Color.White;
             UserNameTextColor = Color.FromArgb(0, 126, 149);
 
-            UpdateTopicChart();
 
             RestoreCustomUI();
 
-            LoadChatHistoryFromDb();
-            LoadCalendarEventsFromDb();
+
 
 
             textBoxInput.KeyDown += textBoxInput_KeyDown;
@@ -152,12 +150,7 @@ namespace Vivy
         {
 
 
-            chartTopics.DrawMarginFrame = new DrawMarginFrame
-            {
-                Stroke = null,
-                Fill = new SolidColorPaint(new SKColor(30, 35, 60))
-            };
-            chartTopics.BackColor = Color.FromArgb(30, 35, 60);
+            
 
             LoadAndApplyUserSettings();
 
@@ -194,7 +187,7 @@ namespace Vivy
             toolTip1.SetToolTip(cbSpeakResponses, "Озвучувати відповіді асистента голосом.");
             toolTip1.SetToolTip(cbSaveHistory, "Зберігати історію ваших чатів, поки ви не видалите її вручну.");
 
-            UpdateEventsForDate(monthCalendar1.SelectionStart.Date);
+
 
             RoundPanelCorners(panelAboutVivy, 15);
             RoundPanelCorners(panelProjects, 15);
@@ -205,11 +198,8 @@ namespace Vivy
 
             UpdateAboutPanelsTheme();
 
-            UpdateCalendarStats();
 
-            
-            cbEventFilter.SelectedIndex = 0;
-            cbEventFilter.SelectedIndexChanged += (s, e) => ApplyEventFilter();
+           
 
             var darkBackground = SKColors.Transparent;
             var darkText = SKColors.White;
@@ -219,23 +209,7 @@ namespace Vivy
     : new SKColor(30, 35, 60);   // Темний
 
 
-            chartTopics.XAxes = new Axis[]
-            {
-        new Axis
-        {
-            LabelsPaint = new SolidColorPaint(darkText),
-            TextSize = 16
-        }
-            };
-
-            chartTopics.YAxes = new Axis[]
-            {
-        new Axis
-        {
-            LabelsPaint = new SolidColorPaint(darkText),
-            TextSize = 16
-        }
-            };
+            
 
         }
 
@@ -439,8 +413,7 @@ namespace Vivy
 
             if (string.IsNullOrEmpty(currentChatTitle))
             {
-                string extractedTopic = ExtractChatTopic(userMessage);
-                currentChatTitle = extractedTopic.Length > 30 ? extractedTopic.Substring(0, 30) + "..." : extractedTopic;
+
 
                 listBoxHistory.Items.Add(currentChatTitle);
                 if (!chatHistory.ContainsKey(currentChatTitle))
@@ -485,20 +458,10 @@ namespace Vivy
             richTextBox1.SelectionStart = richTextBox1.Text.Length;
             richTextBox1.ScrollToCaret();
 
-            UpdateAnalytics();
-            UpdateTimeChart("days");
 
 
-            // Обробляємо тему для аналітики окремо
-            string classifiedTopic = await ClassifyMessageTopic(userMessage);
-            if (!string.IsNullOrWhiteSpace(classifiedTopic))
-            {
-                if (!topicFrequency.ContainsKey(classifiedTopic))
-                    topicFrequency[classifiedTopic] = 0;
-                topicFrequency[classifiedTopic]++;
-                UpdateTopicChart();
 
-            }
+           
             SaveChatHistoryToDb();
 
         }
@@ -1052,182 +1015,26 @@ namespace Vivy
             }
         }
 
-        private void monthCalendar1_DateChanged(object sender, DateRangeEventArgs e)
-        {
-            DateTime selectedDate = e.Start.Date;
-            UpdateEventsForDate(selectedDate);
-        }
+       
         private List<Event> allEvents = new();
 
-        private void buttonAddEvent_Click(object sender, EventArgs e)
-        {
-            string eventText = textBoxNewEvent.Text.Trim();
-            if (string.IsNullOrEmpty(eventText))
-            {
-                MessageBox.Show("Введіть текст події.", "Помилка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            DateTime selectedDate = datePickerEvent.Value.Date;
-            DateTime selectedTime = timePickerEvent.Value;
-
-            DateTime fullDateTime = new DateTime(
-                selectedDate.Year, selectedDate.Month, selectedDate.Day,
-                selectedTime.Hour, selectedTime.Minute, 0
-            );
-
-            allEvents.Add(new Event(fullDateTime, eventText));
-            SaveCalendarEventsToDb();
-            UpdateEventsForDate(monthCalendar1.SelectionStart.Date);
-            ApplyEventFilter();
-
-            UpdateCalendarStats();
-            textBoxNewEvent.Clear();
-        }
-
-        private void UpdateEventsForDate(DateTime date)
-        {
-            listBoxEvents.Items.Clear();
-            lblEventsTitle.Text = $"Події на: [{date:dd.MM.yyyy}]";
-
-            var eventsForDate = allEvents
-                .Where(ev => ev.Date.Date == date.Date)
-                .OrderBy(ev => ev.Date.TimeOfDay)
-                .ToList();
-
-            if (eventsForDate.Count == 0)
-            {
-                listBoxEvents.Items.Add("Немає подій");
-                listBoxEvents.Enabled = false;
-            }
-            else
-            {
-                listBoxEvents.Enabled = true;
-
-                foreach (var ev in eventsForDate)
-                {
-                    string prefix = ev.IsDone ? "✅" : "";
-                    listBoxEvents.Items.Add($"{prefix}{ev.Date:HH:mm} — {ev.Text}");
-                }
-            }
 
 
-            UpdateCalendarStats();
-        }
+
+
 
 
         
 
 
-        private void btnDeleteEvent_Click_1(object sender, EventArgs e)
-        {
-            if (listBoxEvents.SelectedItem == null)
-            {
-                MessageBox.Show("Виберіть подію для видалення.", "Увага", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
+       
 
-            string selectedItem = listBoxEvents.SelectedItem.ToString();
-            DateTime selectedDate = monthCalendar1.SelectionStart.Date;
-
-            var eventToRemove = allEvents
-                .FirstOrDefault(ev => ev.Date.Date == selectedDate && $"{ev.Date:HH:mm} — {ev.Text}" == selectedItem);
-
-            if (eventToRemove != default)
-            {
-                // Удаление из базы данных
-                int userId = GetUserIdByLogin(currentLogin);
-                if (userId != -1)
-                {
-                    string connectionString = "Data Source=vivy.db";
-                    using (var connection = new Microsoft.Data.Sqlite.SqliteConnection(connectionString))
-                    {
-                        connection.Open();
-                        string deleteCmd = @"
-                        DELETE FROM Events 
-                        WHERE OwnerId = @userId AND Title = @title AND Date = @date";
-                        using (var cmd = new Microsoft.Data.Sqlite.SqliteCommand(deleteCmd, connection))
-                        {
-                            cmd.Parameters.AddWithValue("@userId", userId);
-                            cmd.Parameters.AddWithValue("@title", eventToRemove.Text);
-                            cmd.Parameters.AddWithValue("@date", eventToRemove.Date);
-                            cmd.ExecuteNonQuery();
-                        }
-                    }
-                }
-
-                // Удаляем локально из списка
-                allEvents.Remove(eventToRemove);
-                UpdateEventsForDate(selectedDate);
-                ApplyEventFilter();
-                UpdateCalendarStats();
-            }
-        }
-
-        private void UpdateAnalytics()
-        {
-            if (chatHistory == null || chatHistory.Count == 0)
-                return;
-
-            int totalChats = chatHistory.Count;
-            int totalMessages = 0;
-            int totalGptResponsesLength = 0;
-            int gptResponsesCount = 0;
-            string longestChatTitle = "";
-            int longestChatMessages = 0;
-
-            // Найти самый длинный чат(заменил1)
-            foreach (var chat in chatHistory)
-            {
-                totalMessages += chat.Value.Count;
-
-                int currentChatMessageCount = chat.Value.Count;
-                if (currentChatMessageCount > longestChatMessages)
-                {
-                    longestChatMessages = currentChatMessageCount;
-                    longestChatTitle = chat.Key;
-                }
-            }
-
-            // Подсчитать длину GPT-ответов ТОЛЬКО ПОСЛЕ того, как найден longestChatTitle
-            if (!string.IsNullOrEmpty(longestChatTitle) && chatHistory.ContainsKey(longestChatTitle))
-            {
-                foreach (var (sender, message, sentAt) in chatHistory[longestChatTitle])
-                {
-                    if (sender == "Vivy")
-                    {
-                        totalGptResponsesLength += message.Length;
-                        gptResponsesCount++;
-                    }
-                }
-            }
+        
 
 
-            int avgLength = gptResponsesCount > 0 ? totalGptResponsesLength / gptResponsesCount : 0;
-
-            // Оновлення UI
-            lblChatsCount.Text = totalChats.ToString();
-            lblMessagesCount.Text = totalMessages.ToString();
-            lblAvgResponseLength.Text = $"{avgLength} символів";
-            lblLongestChat.Text = longestChatTitle;
-        }
-        private void FrmSettings_Load(object sender, EventArgs e)
-        {
-            UpdateAnalytics();
-        }
-        private string ExtractChatTopic(string message)
-        {
-            // Видалимо розділові знаки і зайві прогалини
-            string cleaned = Regex.Replace(message.ToLower(), @"[^\w\s]", "").Trim();
-
-            // Розіб'ємо на слова
-            var words = cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-            // Візьмемо максимум 2-4 слова з кінця (вони часто найважливіші)
-            var topicWords = words.Skip(Math.Max(0, words.Length - 4)).ToArray();
-
-            return string.Join(" ", topicWords);
-        }
+           
+        
+        
 
         private void UpdateAboutPanelsTheme()
         {
@@ -1267,36 +1074,7 @@ namespace Vivy
             cbSaveHistory.ForeColor = checkBoxForeColor;
             cbSaveHistory.BackColor = checkBoxBackColor;
         }
-        private void UpdateCalendarStats()
-        {
-            if (allEvents == null || allEvents.Count == 0)
-            {
-                lblTotalEvents2.Text = "0";
-                lblPlannedEvents2.Text = "0";
-                lblDoneEvents2.Text = "0";
-                lblOverdueEvents2.Text = "0";
-                lblNextEvent2.Text = "—";
-                return;
-            }
-
-            int total = allEvents.Count;
-            int completed = allEvents.Count(ev => ev.IsDone);
-            int planned = allEvents.Count(ev => !ev.IsDone && ev.Date >= DateTime.Now);
-            int overdue = allEvents.Count(ev => !ev.IsDone && ev.Date < DateTime.Now);
-
-            var next = allEvents
-                .Where(ev => !ev.IsDone && ev.Date >= DateTime.Now)
-                .OrderBy(ev => ev.Date)
-                .FirstOrDefault();
-
-            lblTotalEvents2.Text = total.ToString();
-            lblPlannedEvents2.Text = planned.ToString();
-            lblDoneEvents2.Text = completed.ToString();
-            lblOverdueEvents2.Text = overdue.ToString();
-            lblNextEvent2.Text = next != default
-                ? $"{next.Date:dd.MM.yyyy HH:mm} — {next.Text}"
-                : "—";
-        }
+       
 
 
         public class Event
@@ -1313,127 +1091,7 @@ namespace Vivy
             }
         }
 
-        private void ApplyEventFilter()
-        {
-            string selectedFilter = cbEventFilter.SelectedItem?.ToString();
-            listBoxAllEvents.Items.Clear();
-
-            IEnumerable<Event> filtered = allEvents;
-
-            switch (selectedFilter)
-            {
-                case "Усі події":
-                    break;
-
-                case "Заплановані":
-                    filtered = allEvents.Where(ev => !ev.IsDone && ev.Date >= DateTime.Now);
-                    break;
-
-                case "Виконані":
-                    filtered = allEvents.Where(ev => ev.IsDone);
-                    break;
-
-                case "Прострочені":
-                    filtered = allEvents.Where(ev => !ev.IsDone && ev.Date < DateTime.Now);
-                    break;
-            }
-
-            foreach (var ev in filtered.OrderBy(ev => ev.Date))
-            {
-                string status = ev.IsDone ? "✅" : ev.Date < DateTime.Now ? "⏰" : "";
-                listBoxAllEvents.Items.Add($"{ev.Date:dd.MM.yyyy HH:mm} — {ev.Text} {status}");
-            }
-        }
-        private void btnMarkAsDone_Click(object sender, EventArgs e)
-        {
-            if (listBoxAllEvents.SelectedItem == null) return;
-
-            string selectedText = listBoxAllEvents.SelectedItem.ToString();
-
-            var ev = allEvents.FirstOrDefault(ev =>
-                selectedText.StartsWith($"{ev.Date:dd.MM.yyyy HH:mm} — {ev.Text}"));
-
-            if (ev != null)
-            {
-                ev.IsDone = true;
-                ApplyEventFilter();
-                UpdateCalendarStats();
-            }
-        }
-
-        private void UpdateCalendarAnalytics()
-        {
-            int total = allEvents.Count;
-            int planned = allEvents.Count(ev => ev.Date >= DateTime.Now && !ev.IsDone);
-            int done = allEvents.Count(ev => ev.IsDone);
-            int overdue = allEvents.Count(ev => ev.Date < DateTime.Now && !ev.IsDone);
-
-            lblTotalEvents.Text = total.ToString();
-            lblPlannedEvents.Text = planned.ToString();
-            lblDoneEvents.Text = done.ToString();
-            lblOverdueEvents.Text = overdue.ToString();
-
-            // Найближча подія
-            var next = allEvents
-                .Where(ev => ev.Date >= DateTime.Now && !ev.IsDone)
-                .OrderBy(ev => ev.Date)
-                .FirstOrDefault();
-
-            lblNextEvent.Text = next != null
-                ? $"{next.Date:dd.MM.yyyy HH:mm} — {next.Text}"
-                : "—";
-        }
-
-        private Dictionary<string, int> topicFrequency = new();
-
-        private async Task<string> ClassifyMessageTopic(string message)
-        {
-            string prompt = $"Определи основную тему этого сообщения (1-2 слова, без объяснений): \"{message}\"";
-
-            string response = await GetGPTResponse(prompt);
-
-            return response.Trim().Split('\n').FirstOrDefault()?.Trim() ?? "";
-        }
-
-        private void UpdateTopicChart()
-        {
-            // 👉 Временно заполняем темы вручную, если они пусты
-            if (topicFrequency.Count == 0)
-            {
-                topicFrequency["Привітання"] = 5;
-                topicFrequency["Погода"] = 3;
-                topicFrequency["Код"] = 4;
-                topicFrequency["Музика"] = 2;
-                topicFrequency["Фільми"] = 1;
-                topicFrequency["Навчання"] = 6;
-            }
-
-            var textColor = selectedTheme == "Світла" ? SKColors.Black : SKColors.White;
-
-            var topTopics = topicFrequency
-                .OrderByDescending(kvp => kvp.Value)
-                .Take(6)
-                .ToList();
-
-            double total = topTopics.Sum(kvp => kvp.Value);
-
-            pieChartTopics.Series = topTopics
-                .Select(kvp => new PieSeries<double>
-                {
-                    Values = new[] { (double)kvp.Value },
-                    Name = kvp.Key,
-                    DataLabelsPosition = LiveChartsCore.Measure.PolarLabelsPosition.Middle,
-                    DataLabelsPaint = new SolidColorPaint(textColor),
-                    DataLabelsSize = 14,
-                    DataLabelsFormatter = point =>
-                    {
-                        double percent = total > 0 ? (point.Model / total) * 100 : 0;
-                        return $"{point.Model} ({percent:F0}%)";
-                    }
-
-                })
-                .ToList<ISeries>();
-        }
+        
 
 
 
@@ -1461,109 +1119,7 @@ namespace Vivy
             // Додайте сюди всі панелі, які мають бути закруглені
         }
 
-        private void UpdateTimeChart(string mode = "all")
-        {
-            List<string> labels;
-            List<double> values;
-
-            DateTime now = DateTime.Now;
-            IEnumerable<DateTime> filtered = messageTimestamps;
-
-            if (mode == "day")
-            {
-                filtered = messageTimestamps.Where(t => t.Date == now.Date);
-                var hours = filtered
-                    .GroupBy(t => t.Hour)
-                    .OrderBy(g => g.Key)
-                    .Select(g => new
-                    {
-                        Hour = $"{g.Key:00}:00",
-                        Count = g.Count()
-                    }).ToList();
-
-                labels = hours.Select(h => h.Hour).ToList();
-                values = hours.Select(h => (double)h.Count).ToList();
-            }
-            else if (mode == "week")
-            {
-                DateTime weekStart = now.Date.AddDays(-(int)now.DayOfWeek + 1); // Понеділок як початок тижня
-                filtered = messageTimestamps.Where(t => t.Date >= weekStart && t.Date <= now.Date);
-
-                var days = filtered
-                    .GroupBy(t => t.Date.DayOfWeek)
-                    .OrderBy(g => (int)g.Key)
-                    .Select(g => new
-                    {
-                        Day = CultureInfo.GetCultureInfo("uk-UA").DateTimeFormat.GetDayName(g.Key),
-                        Count = g.Count()
-                    }).ToList();
-
-                labels = days.Select(d => d.Day).ToList();
-                values = days.Select(d => (double)d.Count).ToList();
-            }
-            else if (mode == "month")
-            {
-                filtered = messageTimestamps.Where(t => t.Date >= now.AddDays(-29).Date && t.Date <= now.Date);
-                var dates = filtered
-                    .GroupBy(t => t.Date)
-                    .OrderBy(g => g.Key)
-                    .Select(g => new
-                    {
-                        Date = g.Key.ToString("dd.MM"),
-                        Count = g.Count()
-                    }).ToList();
-
-                labels = dates.Select(d => d.Date).ToList();
-                values = dates.Select(d => (double)d.Count).ToList();
-            }
-            else // "all"
-            {
-                var dates = filtered
-                    .GroupBy(t => t.Date)
-                    .OrderBy(g => g.Key)
-                    .Select(g => new
-                    {
-                        Date = g.Key.ToString("dd.MM"),
-                        Count = g.Count()
-                    }).ToList();
-
-                labels = dates.Select(d => d.Date).ToList();
-                values = dates.Select(d => (double)d.Count).ToList();
-            }
-
-            var columnSeries = new ColumnSeries<double>
-            {
-                Values = values,
-                Name = "Активність",
-                DataLabelsSize = 14,
-                DataLabelsPaint = new SolidColorPaint(SKColors.White),
-                DataLabelsFormatter = (point) => $"{point.Model}"
-
-            };
-
-            chartTopics.Series = new List<ISeries> { columnSeries };
-            chartTopics.XAxes = new Axis[]
- {
-    new Axis
-    {
-        Labels = labels.ToArray(),                    // Дати під кожним стовпцем
-        LabelsPaint = new SolidColorPaint(SKColors.White),
-        TextSize = 16,
-        NamePaint = null,
-        SeparatorsPaint = null,
-        TicksPaint = null
-    }
- };
-
-            chartTopics.YAxes = new Axis[]
-            {
-        new Axis
-        {
-            LabelsPaint = new SolidColorPaint(SKColors.White),
-            TextSize = 16
-        }
-            };
-        }
+        
 
 
 
@@ -1630,7 +1186,7 @@ namespace Vivy
                     if (ctrl is LiveChartsCore.SkiaSharpView.WinForms.CartesianChart chart)
                     {
                         chart.BackColor = analyticsBack;
-                        chartTopics.BackColor = Color.FromArgb(30, 35, 60);
+
 
                     }
                     if (ctrl.HasChildren)
@@ -1762,7 +1318,7 @@ namespace Vivy
                     listBoxHistory.Items.Add(title);
             }
 
-            RebuildTopicFrequencyFromHistory();
+
         }
 
 
@@ -1835,45 +1391,8 @@ namespace Vivy
             }
         }
 
-        private void cbTimeViewMode_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            string selectedRaw = cbTimeViewMode.SelectedItem?.ToString() ?? "За весь час";
-            string selected = selectedRaw.TrimStart('•', ' ').Trim();
-
-            string mode = selected switch
-            {
-                "За день" => "day",
-                "За тиждень" => "week",
-                "За місяць" => "month",
-                "За весь час" => "all",
-                _ => "all"
-            };
-
-            UpdateTimeChart(mode);
-        }
-        private async void RebuildTopicFrequencyFromHistory()
-        {
-            var tempFrequency = new Dictionary<string, int>();
-
-            foreach (var chat in chatHistory.Values.ToList())
-            {
-                foreach (var (sender, message, sentAt) in chat.ToList())
-                {
-                    if (sender != currentLogin) continue;
-
-                    string topic = await ClassifyMessageTopic(message);
-                    if (string.IsNullOrWhiteSpace(topic)) continue;
-
-                    if (!tempFrequency.ContainsKey(topic))
-                        tempFrequency[topic] = 0;
-
-                    tempFrequency[topic]++;
-                }
-            }
-
-            topicFrequency = tempFrequency;
-            UpdateTopicChart(); // Оновлюємо графік
-        }
+       
+       
 
         private void panelVivy_VisibleChanged(object sender, EventArgs e)
         {
@@ -1883,46 +1402,16 @@ namespace Vivy
 
         private void btnUpdateAnalytics_Click(object sender, EventArgs e)
         {
-            UpdateAnalytics();
+
         }
 
         private void button1_Click(object sender, EventArgs e)
         {
             LoadChatHistoryFromDb();
-            RebuildTopicFrequencyFromHistory();
+
         }
 
-        private void cbEventFilter_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            string selectedFilter = cbEventFilter.SelectedItem?.ToString();
-            listBoxAllEvents.Items.Clear();
-
-            IEnumerable<Event> filtered = allEvents;
-
-            switch (selectedFilter)
-            {
-                case "Усі події":
-                    break;
-
-                case "Заплановані":
-                    filtered = allEvents.Where(ev => !ev.IsDone && ev.Date >= DateTime.Now);
-                    break;
-
-                case "Виконані":
-                    filtered = allEvents.Where(ev => ev.IsDone);
-                    break;
-
-                case "Прострочені":
-                    filtered = allEvents.Where(ev => !ev.IsDone && ev.Date < DateTime.Now);
-                    break;
-            }
-
-            foreach (var ev in filtered.OrderBy(ev => ev.Date))
-            {
-                string status = ev.IsDone ? "✅" : ev.Date < DateTime.Now ? "⏰" : "";
-                listBoxAllEvents.Items.Add($"{ev.Date:dd.MM.yyyy HH:mm} — {ev.Text} {status}");
-            }
-        }
+        
 
         
     }
