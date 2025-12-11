@@ -3,8 +3,11 @@ using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
 using LiveChartsCore.SkiaSharpView.WinForms;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.AI;
 using Microsoft.VisualBasic.Logging;
+using OllamaSharp;
 using SkiaSharp;
+using System.Diagnostics;
 using System.Drawing.Drawing2D;
 using System.Drawing.Printing;
 using System.Globalization;
@@ -14,8 +17,6 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
-using System.Diagnostics;
-
 namespace Vivy
 {
     public partial class FrmMain : Form
@@ -29,7 +30,7 @@ namespace Vivy
         // Усередині класу FrmMain
         private Color sideButtonTextColor = Color.FromArgb(0, 126, 249); // за промовчанням для темної теми
         private Color panelElementTextColor = Color.White;                // за замовчуванням для елементів панелей
-        private Color userNameTextColor = Color.FromArgb(0, 126, 149);   // за промовчанням для імені користувача
+        private Color userNameTextColor = Color.FromArgb(0, 126, 149);   // за промовчуванням для імені користувача
 
         // Для бічних кнопок
         private Color sideButtonTextColorDark = Color.FromArgb(0, 126, 249);
@@ -346,59 +347,30 @@ namespace Vivy
         // Асинхронний метод для отримання відповіді від GPT API
         private async Task<string> GetGPTResponse(string userMessage)
         {
-            string apiKey = "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";
-            string apiUrl = "https://openrouter.ai/api/v1/chat/completions";
+            IChatClient chatClient =
+    new OllamaApiClient(new Uri("http://localhost:11434/"), "gpt-oss:20b");
 
-            var requestBody = new
+            // Start the conversation with context for the AI model
+            List<ChatMessage> chatHistory = new();
+
+            while (true)
             {
-                model = "mistralai/mistral-7b-instruct", // можно заменить на другую модель
-                messages = new[]
+                // Get user prompt and add to chat history
+                Console.WriteLine("Your prompt:");
+                var userPrompt = userMessage;
+                chatHistory.Add(new ChatMessage(ChatRole.User, userPrompt));
+
+                // Stream the AI response and add to chat history
+                Console.WriteLine("AI Response:");
+                var response = "";
+                await foreach (ChatResponseUpdate item in
+                    chatClient.GetStreamingResponseAsync(chatHistory))
                 {
-            new { role = "user", content = userMessage }
-        },
-                temperature = 0.7,
-                max_tokens = 500
-            };
-
-            using (HttpClient client = new HttpClient())
-            {
-                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
-                client.DefaultRequestHeaders.Add("HTTP-Referer", "https://yourapp.github.io"); // обязателен для OpenRouter
-                client.DefaultRequestHeaders.Add("X-Title", "Vivy AI");
-
-                var content = new StringContent(
-                    JsonSerializer.Serialize(requestBody),
-                    Encoding.UTF8,
-                    "application/json"
-                );
-
-                try
-                {
-                    var response = await client.PostAsync(apiUrl, content);
-                    response.EnsureSuccessStatusCode();
-                    string responseBody = await response.Content.ReadAsStringAsync();
-
-                    using (JsonDocument doc = JsonDocument.Parse(responseBody))
-                    {
-                        var root = doc.RootElement;
-
-                        // Проверка на наличие поля "message"
-                        if (root.TryGetProperty("choices", out JsonElement choices) &&
-                            choices[0].TryGetProperty("message", out JsonElement message) &&
-                            message.TryGetProperty("content", out JsonElement contentValue))
-                        {
-                            return contentValue.GetString() ?? "Пустой ответ.";
-                        }
-                        else
-                        {
-                            return "Ошибка: ответ не содержит текст.";
-                        }
-                    }
+                    Console.Write(item.Text);
+                    response += item.Text;
                 }
-                catch (Exception ex)
-                {
-                    return $"Ошибка: {ex.Message}";
-                }
+                chatHistory.Add(new ChatMessage(ChatRole.Assistant, response));
+                return response;
             }
         }
 
@@ -461,7 +433,6 @@ namespace Vivy
 
 
 
-           
             SaveChatHistoryToDb();
 
         }
