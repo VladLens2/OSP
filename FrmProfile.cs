@@ -10,11 +10,11 @@ namespace Vivy
     {
         private string currentLogin;
         private string avatarPath;
-        private string selectedTheme = "Темна"; // По умолчанию
+        private string selectedTheme = "Dark"; 
         public string NewLogin => txtLogin.Text;
 
 
-        public FrmProfile(string login, string theme = "Темна")
+        public FrmProfile(string login, string theme = "Dark")
         {
             InitializeComponent();
             selectedTheme = theme;
@@ -23,7 +23,7 @@ namespace Vivy
             LoadUserProfile();
         }
 
-        // Завантаження даних користувача з БД
+        // Laden der Benutzerdaten aus der Datenbank
         private void LoadUserProfile()
         {
             txtLogin.Text = "";
@@ -54,7 +54,7 @@ namespace Vivy
         }
 
 
-        // Зміна аватарки
+        // Avatar ändern
         private void btnChangeAvatar_Click(object sender, EventArgs e)
         {
             using OpenFileDialog ofd = new OpenFileDialog();
@@ -79,7 +79,7 @@ namespace Vivy
             }
         }
 
-        // Збереження змін профілю
+        // Speichern der Profiländerungen
         private void btnSave_Click(object sender, EventArgs e)
         {
             if (string.IsNullOrWhiteSpace(txtLogin.Text))
@@ -121,7 +121,7 @@ namespace Vivy
             this.Close();
         }
 
-        // Застосування теми
+        // Anwenden des Themes
         private void ApplyTheme(string theme)
         {
             selectedTheme = theme;
@@ -167,7 +167,7 @@ namespace Vivy
                     pb.BackColor = backColor;
                 }
 
-                // Рекурсивно для вложенных контролов
+                // Rekursiv für verschachtelte Controls
                 foreach (Control child in ctrl.Controls)
                 {
                     if (child is Label l) l.ForeColor = foreColor;
@@ -186,7 +186,7 @@ namespace Vivy
             }
         }
 
-        // Хешування пароля (аналогічно FrmLogin)
+        // Passwort-Hashing (analog zu FrmLogin)
         private static (string hash, string salt) HashPassword(string password)
         {
             byte[] saltBytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(16);
