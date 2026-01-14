@@ -277,6 +277,8 @@ namespace Vivy
 
             if (string.IsNullOrEmpty(currentChatTitle))
             {
+
+
                 listBoxHistory.Items.Add(currentChatTitle);
                 if (!chatHistory.ContainsKey(currentChatTitle))
                 {
@@ -284,11 +286,16 @@ namespace Vivy
                 }
             }
 
+            string gptResponse = await GetGPTResponse(userMessage);
+            DateTime sentAt = DateTime.Now;
+            chatHistory[currentChatTitle].Add(("Vivy", gptResponse, sentAt));
+            messageTimestamps.Add(sentAt);
+
+
             Color mainTextColor = selectedTheme.Trim().StartsWith("Світла", StringComparison.OrdinalIgnoreCase)
                 ? Color.Black
                 : Color.White;
 
-            // Benutzernachricht anzeigen
             richTextBox1.SelectionColor = Color.DeepSkyBlue;
             richTextBox1.AppendText("Ви: ");
             richTextBox1.SelectionColor = mainTextColor;
@@ -296,50 +303,17 @@ namespace Vivy
 
             textBoxInput.Clear();
 
-            DateTime sentAt = DateTime.Now;
-            chatHistory[currentChatTitle].Add(("User", userMessage, sentAt));
-            messageTimestamps.Add(sentAt);
+            var now = DateTime.Now;
+            chatHistory[currentChatTitle].Add(("Vivy", gptResponse, now));
 
-            // Vivy-Label hinzufügen
+
+            messageTimestamps.Add(now);
+
             richTextBox1.SelectionColor = Color.MediumPurple;
             richTextBox1.AppendText("Vivy: ");
             richTextBox1.SelectionColor = mainTextColor;
+            richTextBox1.AppendText(gptResponse + "\n\n");
 
-            // Zeichen-für-Zeichen-Anzeige mit Streaming
-            IChatClient chatClient = new OllamaApiClient(new Uri("http://localhost:11434/"), "phi3:mini");
-            
-            List<ChatMessage> chatHistoryForAI = new()
-            {
-                new ChatMessage(ChatRole.User, userMessage)
-            };
-
-            StringBuilder fullResponse = new StringBuilder();
-            
-            await foreach (ChatResponseUpdate item in chatClient.GetStreamingResponseAsync(chatHistoryForAI))
-            {
-                if (!string.IsNullOrEmpty(item.Text))
-                {
-                    richTextBox1.SelectionColor = mainTextColor;
-                    richTextBox1.AppendText(item.Text);
-                    fullResponse.Append(item.Text);
-            
-                    richTextBox1.SelectionStart = richTextBox1.Text.Length;
-                    richTextBox1.ScrollToCaret();
-            
-                    // UI-Update erzwingen für flüssige Anzeige
-                    Application.DoEvents();
-                }
-            }
-
-            richTextBox1.AppendText("\n\n");
-
-            // Antwort im Chat-Verlauf speichern
-            DateTime responseTime = DateTime.Now;
-            string gptResponse = fullResponse.ToString();
-            chatHistory[currentChatTitle].Add(("Vivy", gptResponse, responseTime));
-            messageTimestamps.Add(responseTime);
-
-            // Text-to-Speech falls aktiviert
             if (cbSpeakResponses.Checked)
             {
                 synthesizer.SpeakAsync(gptResponse);
@@ -347,9 +321,17 @@ namespace Vivy
 
             richTextBox1.SelectionStart = richTextBox1.Text.Length;
             richTextBox1.ScrollToCaret();
+
+
+
+
+
+
         }
 
        
+
+
 
 
 
