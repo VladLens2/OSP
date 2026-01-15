@@ -163,7 +163,7 @@ namespace Vivy
 
             var analyticsBackgroundColor = selectedTheme == "White"
             ? new SKColor(245, 245, 245) // hell
-    :       new SKColor(30, 35, 60);   // dunkel
+            : new SKColor(30, 35, 60);   // dunkel
 
 
 
@@ -188,7 +188,7 @@ namespace Vivy
             BtnDashboard.BackColor = inactiveButtonColor;
         }
 
-        
+
 
         private void btnContactUs_Click(object sender, EventArgs e)
         {
@@ -211,7 +211,7 @@ namespace Vivy
             panelAbout.Visible = false;
             panelSettings.Visible = true;
         }
-        
+
         private void btnContactUs_Leave(object sender, EventArgs e)
         {
             btnContactUs.BackColor = inactiveButtonColor;
@@ -237,39 +237,10 @@ namespace Vivy
 
 
 
-        private async Task<string> GetGPTResponse(string userMessage)
-        {
-            IChatClient chatClient =
-    new OllamaApiClient(new Uri("http://localhost:11434/"), "phi3:mini");
-
-            // Start the conversation with context for the AI model
-            List<ChatMessage> chatHistory = new();
-
-            while (true)
-            {
-                // Get user prompt and add to chat history
-                Console.WriteLine("Your prompt:");
-                var userPrompt = userMessage;
-                chatHistory.Add(new ChatMessage(ChatRole.User, userPrompt));
-
-                // Stream the AI response and add to chat history
-                Console.WriteLine("AI Response:");
-                var response = "";
-                await foreach (ChatResponseUpdate item in
-                    chatClient.GetStreamingResponseAsync(chatHistory))
-                {
-                    Console.Write(item.Text);
-                    response += item.Text;
-                }
-                chatHistory.Add(new ChatMessage(ChatRole.Assistant, response));
-                return response;
-            }
-        }
+        
 
 
 
-
-        // Обробка натискання кнопки "Відправити" (Send)
         private async void btnSend_Click(object sender, EventArgs e)
         {
             string userMessage = textBoxInput.Text.Trim();
@@ -277,8 +248,6 @@ namespace Vivy
 
             if (string.IsNullOrEmpty(currentChatTitle))
             {
-
-
                 listBoxHistory.Items.Add(currentChatTitle);
                 if (!chatHistory.ContainsKey(currentChatTitle))
                 {
@@ -286,34 +255,62 @@ namespace Vivy
                 }
             }
 
-            string gptResponse = await GetGPTResponse(userMessage);
-            DateTime sentAt = DateTime.Now;
-            chatHistory[currentChatTitle].Add(("Vivy", gptResponse, sentAt));
-            messageTimestamps.Add(sentAt);
-
-
-            Color mainTextColor = selectedTheme.Trim().StartsWith("Світла", StringComparison.OrdinalIgnoreCase)
+            Color mainTextColor = selectedTheme.Trim().StartsWith("White", StringComparison.OrdinalIgnoreCase)
                 ? Color.Black
                 : Color.White;
 
+            // Benutzernachricht anzeigen
             richTextBox1.SelectionColor = Color.DeepSkyBlue;
-            richTextBox1.AppendText("Ви: ");
+            richTextBox1.AppendText("Sie: ");
             richTextBox1.SelectionColor = mainTextColor;
             richTextBox1.AppendText(userMessage + "\n\n");
 
             textBoxInput.Clear();
 
-            var now = DateTime.Now;
-            chatHistory[currentChatTitle].Add(("Vivy", gptResponse, now));
+            DateTime sentAt = DateTime.Now;
+            chatHistory[currentChatTitle].Add(("User", userMessage, sentAt));
+            messageTimestamps.Add(sentAt);
 
-
-            messageTimestamps.Add(now);
-
+            // Vivy-Label hinzufügen
             richTextBox1.SelectionColor = Color.MediumPurple;
             richTextBox1.AppendText("Vivy: ");
             richTextBox1.SelectionColor = mainTextColor;
-            richTextBox1.AppendText(gptResponse + "\n\n");
 
+            // Zeichen-für-Zeichen-Anzeige mit Streaming
+            IChatClient chatClient = new OllamaApiClient(new Uri("http://localhost:11434/"), "phi3:mini");
+
+            List<ChatMessage> chatHistoryForAI = new()
+            {
+                new ChatMessage(ChatRole.User, userMessage)
+            };
+
+            StringBuilder fullResponse = new StringBuilder();
+
+            await foreach (ChatResponseUpdate item in chatClient.GetStreamingResponseAsync(chatHistoryForAI))
+            {
+                if (!string.IsNullOrEmpty(item.Text))
+                {
+                    richTextBox1.SelectionColor = mainTextColor;
+                    richTextBox1.AppendText(item.Text);
+                    fullResponse.Append(item.Text);
+
+                    richTextBox1.SelectionStart = richTextBox1.Text.Length;
+                    richTextBox1.ScrollToCaret();
+
+                    // UI-Update erzwingen für flüssige Anzeige
+                    Application.DoEvents();
+                }
+            }
+
+            richTextBox1.AppendText("\n\n");
+
+            // Antwort im Chat-Verlauf speichern
+            DateTime responseTime = DateTime.Now;
+            string gptResponse = fullResponse.ToString();
+            chatHistory[currentChatTitle].Add(("Vivy", gptResponse, responseTime));
+            messageTimestamps.Add(responseTime);
+
+            // Text-to-Speech falls aktiviert
             if (cbSpeakResponses.Checked)
             {
                 synthesizer.SpeakAsync(gptResponse);
@@ -321,15 +318,7 @@ namespace Vivy
 
             richTextBox1.SelectionStart = richTextBox1.Text.Length;
             richTextBox1.ScrollToCaret();
-
-
-
-
-
-
         }
-
-       
 
 
 
@@ -437,7 +426,7 @@ namespace Vivy
                 cmd.ExecuteNonQuery();
             }
 
-            MessageBox.Show("Änderungen gespeichert!", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Information);;
+            MessageBox.Show("Änderungen gespeichert!", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Information); ;
         }
 
 
@@ -543,7 +532,7 @@ namespace Vivy
             pnlNaw.BackColor = theme == "White" ? Color.LightGray : Color.FromArgb(24, 30, 54);
 
             if (!string.IsNullOrEmpty(currentChatTitle) && chatHistory.ContainsKey(currentChatTitle))
-            UpdateAboutPanelsTheme();
+                UpdateAboutPanelsTheme();
 
         }
 
@@ -684,10 +673,10 @@ namespace Vivy
 
         }
 
-        
+
         private void RestoreCustomUI()
         {
-            
+
 
 
             this.Region = System.Drawing.Region.FromHrgn(CreateRoundRectRgn(0, 0, Width, Height, 25, 25));
