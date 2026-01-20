@@ -103,45 +103,44 @@ namespace Vivy
             int nWidthEllipse,
             int nHeightEllipse
         );
-
+	
 
 
         public FrmMain(string login)
         {
-            {
-                InitializeComponent();
+            InitializeComponent();
 
-                currentLogin = login;
+            currentLogin = login;
 
-                AddWindowControlButtons();
+            // Event Handler für ListBox hinzufügen
+            listBoxHistory.SelectedIndexChanged += listBoxHistory_SelectedIndexChanged;
 
-                // Wendet abgerundete Ecken auf das Fenster an
-                Region = System.Drawing.Region.FromHrgn(CreateRoundRectRgn(0, 0, Width, Height, 25, 25));
-                // Setzt Position und Größe des Indikator-Panels für die Dashboard-Schaltfläche
-                Pnlscroll.Height = BtnDashboard.Height;
-                Pnlscroll.Top = BtnDashboard.Top;
-                Pnlscroll.Left = BtnDashboard.Left;
-                BtnDashboard.BackColor = Color.FromArgb(46, 51, 73);
+            AddWindowControlButtons();
 
-                SideButtonTextColor = Color.FromArgb(0, 126, 249);
-                PanelElementTextColor = Color.White;
-                UserNameTextColor = Color.FromArgb(0, 126, 149);
+            // Wendet abgerundete Ecken auf das Fenster an
+            Region = System.Drawing.Region.FromHrgn(CreateRoundRectRgn(0, 0, Width, Height, 25, 25));
+            // Setzt Position und Größe des Indikator-Panels für die Dashboard-Schaltfläche
+            Pnlscroll.Height = BtnDashboard.Height;
+            Pnlscroll.Top = BtnDashboard.Top;
+            Pnlscroll.Left = BtnDashboard.Left;
+            BtnDashboard.BackColor = Color.FromArgb(46, 51, 73);
 
+            SideButtonTextColor = Color.FromArgb(0, 126, 249);
+            PanelElementTextColor = Color.White;
+            UserNameTextColor = Color.FromArgb(0, 126, 149);
+	
 
 
                 RestoreCustomUI();
             }
-        }
+        
         private Dictionary<string, List<(string sender, string text, DateTime sentAt)>> chatHistory = new();
         private string currentChatTitle = "";
 
         private void FrmMain_Load(object sender, EventArgs e)
         {
-
-
-
-
             LoadAndApplyUserSettings();
+            LoadUserChatsFromDatabase(); // Neu hinzugefügt
 
             // Rundet die Ecken des Eingabe-Panels
             RoundPanelCorners(panelInput, 10);
@@ -151,12 +150,7 @@ namespace Vivy
             RoundPanelCorners(panelSupport, 15);
             RoundPanelCorners(panelaboutUs, 15);
 
-
             UpdateAboutPanelsTheme();
-
-
-
-
 
             var darkBackground = SKColors.Transparent;
             var darkText = SKColors.White;
@@ -237,87 +231,99 @@ namespace Vivy
 
 
 
-        
 
 
 
         private async void btnSend_Click(object sender, EventArgs e)
         {
-            string userMessage = textBoxInput.Text.Trim();
-            if (string.IsNullOrEmpty(userMessage)) return;
-
-            if (string.IsNullOrEmpty(currentChatTitle))
+            try
             {
-                listBoxHistory.Items.Add(currentChatTitle);
-                if (!chatHistory.ContainsKey(currentChatTitle))
+                string userMessage = textBoxInput.Text.Trim();
+                if (string.IsNullOrEmpty(userMessage)) return;
+
+                if (string.IsNullOrEmpty(currentChatTitle))
                 {
-                    chatHistory[currentChatTitle] = new List<(string sender, string text, DateTime sentAt)>();
+                    currentChatTitle = $"Chat {DateTime.Now:dd.MM.yyyy HH:mm}";
+                    listBoxHistory.Items.Add(currentChatTitle);
+                    if (!chatHistory.ContainsKey(currentChatTitle))
+                    {
+                        chatHistory[currentChatTitle] = new List<(string sender, string text, DateTime sentAt)>();
+                    }
                 }
-            }
 
-            Color mainTextColor = selectedTheme.Trim().StartsWith("White", StringComparison.OrdinalIgnoreCase)
-                ? Color.Black
-                : Color.White;
+                Color mainTextColor = selectedTheme.Trim().StartsWith("White", StringComparison.OrdinalIgnoreCase)
+                    ? Color.Black
+                    : Color.White;
 
-            // Benutzernachricht anzeigen
-            richTextBox1.SelectionColor = Color.DeepSkyBlue;
-            richTextBox1.AppendText("Sie: ");
-            richTextBox1.SelectionColor = mainTextColor;
-            richTextBox1.AppendText(userMessage + "\n\n");
+                // Benutzernachricht anzeigen
+                richTextBox1.SelectionColor = Color.DeepSkyBlue;
+                richTextBox1.AppendText("Sie: ");
+                richTextBox1.SelectionColor = mainTextColor;
+                richTextBox1.AppendText(userMessage + "\n\n");
 
-            textBoxInput.Clear();
+                textBoxInput.Clear();
 
-            DateTime sentAt = DateTime.Now;
-            chatHistory[currentChatTitle].Add(("User", userMessage, sentAt));
-            messageTimestamps.Add(sentAt);
+                DateTime sentAt = DateTime.Now;
+                chatHistory[currentChatTitle].Add(("User", userMessage, sentAt));
+                messageTimestamps.Add(sentAt);
 
-            // Vivy-Label hinzufügen
-            richTextBox1.SelectionColor = Color.MediumPurple;
-            richTextBox1.AppendText("Vivy: ");
-            richTextBox1.SelectionColor = mainTextColor;
+                // Speichere Benutzernachricht in DB (mit aktueller UserId)
+                SaveMessageToDatabase(currentChatTitle, "User", userMessage, sentAt);
 
-            // Zeichen-für-Zeichen-Anzeige mit Streaming
-            IChatClient chatClient = new OllamaApiClient(new Uri("http://localhost:11434/"), "phi3:mini");
+                // Vivy-Label hinzufügen
+                richTextBox1.SelectionColor = Color.MediumPurple;
+                richTextBox1.AppendText("Vivy: ");
+                richTextBox1.SelectionColor = mainTextColor;
 
-            List<ChatMessage> chatHistoryForAI = new()
-            {
-                new ChatMessage(ChatRole.User, userMessage)
-            };
+                // Zeichen-für-Zeichen-Anzeige mit Streaming
+                IChatClient chatClient = new OllamaApiClient(new Uri("http://localhost:11434/"), "phi3:mini");
 
-            StringBuilder fullResponse = new StringBuilder();
-
-            await foreach (ChatResponseUpdate item in chatClient.GetStreamingResponseAsync(chatHistoryForAI))
-            {
-                if (!string.IsNullOrEmpty(item.Text))
+                List<ChatMessage> chatHistoryForAI = new()
                 {
-                    richTextBox1.SelectionColor = mainTextColor;
-                    richTextBox1.AppendText(item.Text);
-                    fullResponse.Append(item.Text);
+                    new ChatMessage(ChatRole.User, userMessage)
+                };
 
-                    richTextBox1.SelectionStart = richTextBox1.Text.Length;
-                    richTextBox1.ScrollToCaret();
+                StringBuilder fullResponse = new StringBuilder();
 
-                    // UI-Update erzwingen für flüssige Anzeige
-                    Application.DoEvents();
+                await foreach (ChatResponseUpdate item in chatClient.GetStreamingResponseAsync(chatHistoryForAI))
+                {
+                    if (!string.IsNullOrEmpty(item.Text))
+                    {
+                        richTextBox1.SelectionColor = mainTextColor;
+                        richTextBox1.AppendText(item.Text);
+                        fullResponse.Append(item.Text);
+
+                        richTextBox1.SelectionStart = richTextBox1.Text.Length;
+                        richTextBox1.ScrollToCaret();
+
+                        Application.DoEvents();
+                    }
                 }
+
+                richTextBox1.AppendText("\n\n");
+
+                // Antwort im Chat-Verlauf speichern
+                DateTime responseTime = DateTime.Now;
+                string gptResponse = fullResponse.ToString();
+                chatHistory[currentChatTitle].Add(("Vivy", gptResponse, responseTime));
+                messageTimestamps.Add(responseTime);
+
+                // Speichere Vivy-Antwort in DB mit SenderId = 1 (KI-Benutzer)
+                SaveMessageToDatabase(currentChatTitle, "Vivy", gptResponse, responseTime, customSenderId: 1);
+
+                // Text-to-Speech falls aktiviert
+                if (cbSpeakResponses.Checked)
+                {
+                    synthesizer.SpeakAsync(gptResponse);
+                }
+
+                richTextBox1.SelectionStart = richTextBox1.Text.Length;
+                richTextBox1.ScrollToCaret();
             }
-
-            richTextBox1.AppendText("\n\n");
-
-            // Antwort im Chat-Verlauf speichern
-            DateTime responseTime = DateTime.Now;
-            string gptResponse = fullResponse.ToString();
-            chatHistory[currentChatTitle].Add(("Vivy", gptResponse, responseTime));
-            messageTimestamps.Add(responseTime);
-
-            // Text-to-Speech falls aktiviert
-            if (cbSpeakResponses.Checked)
+            catch (Exception ex)
             {
-                synthesizer.SpeakAsync(gptResponse);
+                MessageBox.Show($"Fehler: {ex.Message}", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-
-            richTextBox1.SelectionStart = richTextBox1.Text.Length;
-            richTextBox1.ScrollToCaret();
         }
 
 
@@ -361,8 +367,6 @@ namespace Vivy
             }
 
         }
-
-
 
         private void btnSaveSettings_Click(object sender, EventArgs e)
         {
@@ -471,7 +475,7 @@ namespace Vivy
         }
 
         private SpeechSynthesizer synthesizer = new SpeechSynthesizer();
-
+	
 
 
         private void btnLogout_Click(object sender, EventArgs e)
@@ -629,7 +633,7 @@ namespace Vivy
             if (reader.Read())
             {
                 string theme = reader.IsDBNull(0) ? "Dark" : reader.GetString(0);
-                bool speak = !reader.IsDBNull(1) && reader.GetInt32(2) == 1;
+                bool speak = !reader.IsDBNull(1) && reader.GetInt32(1) == 1;
                 string model = reader.IsDBNull(2) ? "gpt-3.5-turbo" : reader.GetString(2);
 
                 cbTheme.SelectedItem = theme;
@@ -677,7 +681,7 @@ namespace Vivy
         private void RestoreCustomUI()
         {
 
-
+	
 
             this.Region = System.Drawing.Region.FromHrgn(CreateRoundRectRgn(0, 0, Width, Height, 25, 25));
 
@@ -708,5 +712,291 @@ namespace Vivy
             return result != null ? Convert.ToInt32(result) : -1;
         }
 
+        // Speichern der Nachrichten in die Datenbank 
+        private void SaveMessageToDatabase(string chatTitle, string sender, string text, DateTime sentAt, int? customSenderId = null)
+        {
+            string connectionString = "Data Source=vivy.db";
+            using var connection = new SqliteConnection(connectionString);
+            connection.Open();
+
+            // Hole ChatId oder erstelle neuen Chat
+            int chatId = GetOrCreateChatId(chatTitle, connection);
+
+            // Hole SenderId - verwende customSenderId falls angegeben, sonst aktueller User
+            int senderId;
+            if (customSenderId.HasValue)
+            {
+                senderId = customSenderId.Value;
+            }
+            else
+            {
+                senderId = GetUserIdByLogin(currentLogin);
+            }
+
+            // Speichere Nachricht
+            string insertCmd = @"INSERT INTO Messages (ChatId, SenderId, Text, SentAt) 
+                                VALUES (@chatId, @senderId, @text, @sentAt)";
+            using var cmd = new SqliteCommand(insertCmd, connection);
+            cmd.Parameters.AddWithValue("@chatId", chatId);
+            cmd.Parameters.AddWithValue("@senderId", senderId);
+            cmd.Parameters.AddWithValue("@text", text);
+            cmd.Parameters.AddWithValue("@sentAt", sentAt.ToString("yyyy-MM-dd HH:mm:ss.fffffff"));
+            cmd.ExecuteNonQuery();
+        }
+
+        private int GetOrCreateChatId(string chatTitle, SqliteConnection connection)
+        {
+            int userId = GetUserIdByLogin(currentLogin);
+            
+            // Prüfe ob Chat existiert
+            string selectCmd = "SELECT Id FROM Chats WHERE Title = @title AND UserId = @userId";
+            using var selectCommand = new SqliteCommand(selectCmd, connection);
+            selectCommand.Parameters.AddWithValue("@title", chatTitle);
+            selectCommand.Parameters.AddWithValue("@userId", userId);
+            
+            var result = selectCommand.ExecuteScalar();
+            if (result != null)
+            {
+                return Convert.ToInt32(result);
+            }
+            
+            // Erstelle neuen Chat
+            string insertCmd = "INSERT INTO Chats (Title, UserId) VALUES (@title, @userId); SELECT last_insert_rowid();";
+    using var insertCommand = new SqliteCommand(insertCmd, connection);
+    insertCommand.Parameters.AddWithValue("@title", chatTitle);
+    insertCommand.Parameters.AddWithValue("@userId", userId);
+    
+    return Convert.ToInt32(insertCommand.ExecuteScalar());
+        }
+
+        // Methode zum Laden aller Chats beim Start
+        private void LoadUserChatsFromDatabase()
+        {
+            string connectionString = "Data Source=vivy.db";
+            using var connection = new SqliteConnection(connectionString);
+            connection.Open();
+
+            int userId = GetUserIdByLogin(currentLogin);
+
+            string selectCmd = "SELECT DISTINCT Title FROM Chats WHERE UserId = @userId ORDER BY Id DESC";
+            using var cmd = new SqliteCommand(selectCmd, connection);
+            cmd.Parameters.AddWithValue("@userId", userId);
+
+            listBoxHistory.Items.Clear();
+            chatHistory.Clear();
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                string title = reader.GetString(0);
+                listBoxHistory.Items.Add(title);
+                chatHistory[title] = new List<(string sender, string text, DateTime sentAt)>();
+            }
+        }
+
+        // Methode zum Laden der Nachrichten eines bestimmten Chats
+        private void LoadChatMessagesFromDatabase(string chatTitle)
+        {
+            try
+            {
+                string connectionString = "Data Source=vivy.db";
+                using var connection = new SqliteConnection(connectionString);
+                connection.Open();
+
+                int userId = GetUserIdByLogin(currentLogin);
+
+                string selectCmd = @"SELECT m.Text, m.SentAt, m.SenderId 
+                            FROM Messages m
+                            INNER JOIN Chats c ON m.ChatId = c.Id
+                            WHERE c.Title = @title AND c.UserId = @userId
+                            ORDER BY m.SentAt ASC";
+
+                using var cmd = new SqliteCommand(selectCmd, connection);
+                cmd.Parameters.AddWithValue("@title", chatTitle);
+                cmd.Parameters.AddWithValue("@userId", userId);
+
+                chatHistory[chatTitle] = new List<(string sender, string text, DateTime sentAt)>();
+                richTextBox1.Clear();
+
+                Color mainTextColor = selectedTheme.Trim().StartsWith("White", StringComparison.OrdinalIgnoreCase)
+                    ? Color.Black
+                    : Color.White;
+
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    string text = reader.GetString(0);
+                    DateTime sentAt = DateTime.Parse(reader.GetString(1));
+                    int senderId = reader.GetInt32(2);
+
+                    // SenderId 1 ist KI (Vivy), alle anderen sind Benutzer
+                    string sender = senderId == 1 ? "Vivy" : "User";
+                    chatHistory[chatTitle].Add((sender, text, sentAt));
+                    messageTimestamps.Add(sentAt);
+
+                    // Anzeige in RichTextBox
+                    if (sender == "User")
+                    {
+                        richTextBox1.SelectionColor = Color.DeepSkyBlue;
+                        richTextBox1.AppendText("Sie: ");
+                    }
+                    else
+                    {
+                        richTextBox1.SelectionColor = Color.MediumPurple;
+                        richTextBox1.AppendText("Vivy: ");
+                    }
+
+                    richTextBox1.SelectionColor = mainTextColor;
+                    richTextBox1.AppendText(text + "\n\n");
+                }
+
+                richTextBox1.SelectionStart = richTextBox1.Text.Length;
+                richTextBox1.ScrollToCaret();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Fehler beim Laden des Chats: {ex.Message}", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void listBoxHistory_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (listBoxHistory.SelectedItem != null)
+            {
+                currentChatTitle = listBoxHistory.SelectedItem.ToString();
+                LoadChatMessagesFromDatabase(currentChatTitle);
+            }
+        }
+
+        // Fügen Sie diese Methode hinzu, um einen neuen Chat zu starten
+        private void btnNewChat_Click(object sender, EventArgs e)
+        {
+            // Prüfen ob aktueller Chat ungespeicherte Nachrichten hat
+            if (!string.IsNullOrEmpty(textBoxInput.Text))
+            {
+                var result = MessageBox.Show(
+                    "Möchten Sie wirklich einen neuen Chat starten? Ungesendete Nachrichten gehen verloren.",
+                    "Neuer Chat",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question
+                );
+                
+                if (result == DialogResult.No)
+                    return;
+            }
+            
+            // Leere den aktuellen Chat-Titel
+            currentChatTitle = string.Empty;
+            
+            // Leere die RichTextBox
+            richTextBox1.Clear();
+            
+            // Leere das Eingabefeld
+            textBoxInput.Clear();
+            
+            // Deselektiere den ausgewählten Chat in der ListBox
+            listBoxHistory.ClearSelected();
+            
+            // Fokus auf das Eingabefeld setzen
+            textBoxInput.Focus();
+        }
+
+        private void btnDeleteChat_Click(object sender, EventArgs e)
+        {
+            // Prüfen ob ein Chat ausgewählt ist
+            if (listBoxHistory.SelectedItem == null)
+            {
+                MessageBox.Show(
+                    "Bitte wählen Sie einen Chat aus, den Sie löschen möchten.",
+                    "Vivy",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+                return;
+            }
+
+            string chatToDelete = listBoxHistory.SelectedItem.ToString();
+
+            // Bestätigung vom Benutzer einholen
+            var result = MessageBox.Show(
+                $"Möchten Sie den Chat '{chatToDelete}' wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+                "Chat löschen",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning
+            );
+
+            if (result == DialogResult.No)
+                return;
+
+            try
+            {
+                string connectionString = "Data Source=vivy.db";
+                using var connection = new SqliteConnection(connectionString);
+                connection.Open();
+
+                int userId = GetUserIdByLogin(currentLogin);
+
+                // Hole ChatId
+                string selectChatIdCmd = "SELECT Id FROM Chats WHERE Title = @title AND UserId = @userId";
+                using var selectCmd = new SqliteCommand(selectChatIdCmd, connection);
+                selectCmd.Parameters.AddWithValue("@title", chatToDelete);
+                selectCmd.Parameters.AddWithValue("@userId", userId);
+
+                var chatIdResult = selectCmd.ExecuteScalar();
+                if (chatIdResult == null)
+                {
+                    MessageBox.Show("Chat wurde nicht in der Datenbank gefunden.", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                int chatId = Convert.ToInt32(chatIdResult);
+
+                // Lösche zuerst alle Nachrichten des Chats
+                string deleteMessagesCmd = "DELETE FROM Messages WHERE ChatId = @chatId";
+                using var deleteMessagesCommand = new SqliteCommand(deleteMessagesCmd, connection);
+                deleteMessagesCommand.Parameters.AddWithValue("@chatId", chatId);
+                deleteMessagesCommand.ExecuteNonQuery();
+
+                // Lösche dann den Chat selbst
+                string deleteChatCmd = "DELETE FROM Chats WHERE Id = @chatId";
+                using var deleteChatCommand = new SqliteCommand(deleteChatCmd, connection);
+                deleteChatCommand.Parameters.AddWithValue("@chatId", chatId);
+                deleteChatCommand.ExecuteNonQuery();
+
+                // Entferne aus der ListBox
+                listBoxHistory.Items.Remove(chatToDelete);
+
+                // Entferne aus dem lokalen chatHistory Dictionary
+                if (chatHistory.ContainsKey(chatToDelete))
+                {
+                    chatHistory.Remove(chatToDelete);
+                }
+
+                // Wenn der gelöschte Chat der aktuelle Chat war, leere die Anzeige
+                if (currentChatTitle == chatToDelete)
+                {
+                    currentChatTitle = string.Empty;
+                    richTextBox1.Clear();
+                    textBoxInput.Clear();
+                    messageTimestamps.Clear();
+                }
+
+                MessageBox.Show(
+                    "Chat erfolgreich gelöscht!",
+                    "Vivy",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Fehler beim Löschen des Chats: {ex.Message}",
+                    "Vivy",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+            }
+        }
     }
 }

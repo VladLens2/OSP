@@ -354,6 +354,7 @@
             resources.ApplyResources(btnClearChat, "btnClearChat");
             btnClearChat.Name = "btnClearChat";
             btnClearChat.UseVisualStyleBackColor = false;
+            btnClearChat.Click += btnDeleteChat_Click;
             // 
             // btnNewChat
             // 
@@ -362,6 +363,7 @@
             resources.ApplyResources(btnNewChat, "btnNewChat");
             btnNewChat.Name = "btnNewChat";
             btnNewChat.UseVisualStyleBackColor = false;
+            btnNewChat.Click += btnNewChat_Click;
             // 
             // label13
             // 
