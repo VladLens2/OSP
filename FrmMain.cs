@@ -28,8 +28,12 @@ namespace Vivy
         private Color activeButtonColor;
         private Color inactiveButtonColor;
 
+        // Neue Felder für Spielverwaltung
+        private int currentGameId = -1;
+        private string currentGameName = "";
+        private string currentGameRules = "";
 
-        private Color sideButtonTextColor = Color.FromArgb(0, 126, 249);
+        private Color sideButtonTextColor = Color.FromArgb(                                                                                             0, 126, 249);
         private Color panelElementTextColor = Color.White;
         private Color userNameTextColor = Color.FromArgb(0, 126, 149);
 
@@ -112,7 +116,7 @@ namespace Vivy
 
             currentLogin = login;
 
-            // Event Handler für ListBox hinzufügen
+            // Event Handler für ListBox hinzufügen (jetzt für Spiele)
             listBoxHistory.SelectedIndexChanged += listBoxHistory_SelectedIndexChanged;
 
             AddWindowControlButtons();
@@ -131,8 +135,8 @@ namespace Vivy
 	
 
 
-                RestoreCustomUI();
-            }
+            RestoreCustomUI();
+        }
         
         private Dictionary<string, List<(string sender, string text, DateTime sentAt)>> chatHistory = new();
         private string currentChatTitle = "";
@@ -140,7 +144,7 @@ namespace Vivy
         private void FrmMain_Load(object sender, EventArgs e)
         {
             LoadAndApplyUserSettings();
-            LoadUserChatsFromDatabase(); // Neu hinzugefügt
+            LoadUserGamesFromDatabase(); // Geändert: Lade Spiele statt Chats
 
             // Rundet die Ecken des Eingabe-Panels
             RoundPanelCorners(panelInput, 10);
@@ -158,10 +162,6 @@ namespace Vivy
             var analyticsBackgroundColor = selectedTheme == "White"
             ? new SKColor(245, 245, 245) // hell
             : new SKColor(30, 35, 60);   // dunkel
-
-
-
-
         }
 
         // Verarbeitung des Klicks auf verschiedene Menü-Schaltflächen zum Umschalten der Panels
@@ -229,11 +229,6 @@ namespace Vivy
             panel.Region = new Region(path);
         }
 
-
-
-
-
-
         private async void btnSend_Click(object sender, EventArgs e)
         {
             try
@@ -241,10 +236,16 @@ namespace Vivy
                 string userMessage = textBoxInput.Text.Trim();
                 if (string.IsNullOrEmpty(userMessage)) return;
 
+                // Prüfe ob ein Spiel ausgewählt ist
+                if (currentGameId == -1)
+                {
+                    MessageBox.Show("Bitte wählen Sie zuerst ein Spiel aus!", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
                 if (string.IsNullOrEmpty(currentChatTitle))
                 {
                     currentChatTitle = $"Chat {DateTime.Now:dd.MM.yyyy HH:mm}";
-                    listBoxHistory.Items.Add(currentChatTitle);
                     if (!chatHistory.ContainsKey(currentChatTitle))
                     {
                         chatHistory[currentChatTitle] = new List<(string sender, string text, DateTime sentAt)>();
@@ -278,8 +279,18 @@ namespace Vivy
                 // Zeichen-für-Zeichen-Anzeige mit Streaming
                 IChatClient chatClient = new OllamaApiClient(new Uri("http://localhost:11434/"), "phi3:mini");
 
+                // System-Prompt mit Spielregeln
+                string systemPrompt = $@"Du bist ein Experte für das Brettspiel '{currentGameName}'. 
+Du antwortest NUR auf Fragen zu diesem Spiel basierend auf folgenden Regeln:
+
+{currentGameRules}
+
+Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich: 
+'Entschuldigung, ich bin auf das Spiel {currentGameName} spezialisiert. Bitte stelle mir eine Frage zu diesem Spiel.'";
+
                 List<ChatMessage> chatHistoryForAI = new()
                 {
+                    new ChatMessage(ChatRole.System, systemPrompt),
                     new ChatMessage(ChatRole.User, userMessage)
                 };
 
@@ -293,14 +304,16 @@ namespace Vivy
                         richTextBox1.AppendText(item.Text);
                         fullResponse.Append(item.Text);
 
-                        richTextBox1.SelectionStart = richTextBox1.Text.Length;
-                        richTextBox1.ScrollToCaret();
-
+                        // Nur DoEvents, kein Scrollen während des Streamings
                         Application.DoEvents();
                     }
                 }
 
                 richTextBox1.AppendText("\n\n");
+
+                // Erst nach Abschluss des Streamings scrollen
+                richTextBox1.SelectionStart = richTextBox1.TextLength;
+                richTextBox1.ScrollToCaret();
 
                 // Antwort im Chat-Verlauf speichern
                 DateTime responseTime = DateTime.Now;
@@ -316,19 +329,12 @@ namespace Vivy
                 {
                     synthesizer.SpeakAsync(gptResponse);
                 }
-
-                richTextBox1.SelectionStart = richTextBox1.Text.Length;
-                richTextBox1.ScrollToCaret();
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Fehler: {ex.Message}", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-
-
-
-
 
         private void picUserAvatar_Click(object sender, EventArgs e)
         {
@@ -341,8 +347,6 @@ namespace Vivy
                 }
             }
         }
-
-
 
         private void LoadUserAvatar()
         {
@@ -680,9 +684,6 @@ namespace Vivy
 
         private void RestoreCustomUI()
         {
-
-	
-
             this.Region = System.Drawing.Region.FromHrgn(CreateRoundRectRgn(0, 0, Width, Height, 25, 25));
 
             // Füge benutzerdefinierte Fenstersteuerungs-Schaltflächen hinzu
@@ -769,8 +770,8 @@ namespace Vivy
     return Convert.ToInt32(insertCommand.ExecuteScalar());
         }
 
-        // Methode zum Laden aller Chats beim Start
-        private void LoadUserChatsFromDatabase()
+        // NEUE METHODE: Laden aller Spiele des Benutzers
+        private void LoadUserGamesFromDatabase()
         {
             string connectionString = "Data Source=vivy.db";
             using var connection = new SqliteConnection(connectionString);
@@ -778,24 +779,33 @@ namespace Vivy
 
             int userId = GetUserIdByLogin(currentLogin);
 
-            string selectCmd = "SELECT DISTINCT Title FROM Chats WHERE UserId = @userId ORDER BY Id DESC";
+            string selectCmd = "SELECT Id, Name FROM BoardGames WHERE UserId = @userId ORDER BY CreatedAt DESC";
             using var cmd = new SqliteCommand(selectCmd, connection);
             cmd.Parameters.AddWithValue("@userId", userId);
 
             listBoxHistory.Items.Clear();
-            chatHistory.Clear();
 
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
-                string title = reader.GetString(0);
-                listBoxHistory.Items.Add(title);
-                chatHistory[title] = new List<(string sender, string text, DateTime sentAt)>();
+                int gameId = reader.GetInt32(0);
+                string gameName = reader.GetString(1);
+                listBoxHistory.Items.Add(gameName);
             }
         }
 
-        // Methode zum Laden der Nachrichten eines bestimmten Chats
-        private void LoadChatMessagesFromDatabase(string chatTitle)
+        // GEÄNDERTE METHODE: Laden des ausgewählten Spiels
+        private void listBoxHistory_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (listBoxHistory.SelectedItem != null)
+            {
+                string selectedGameName = listBoxHistory.SelectedItem.ToString();
+                LoadGameFromDatabase(selectedGameName);
+            }
+        }
+
+        // NEUE METHODE: Spiel aus Datenbank laden
+        private void LoadGameFromDatabase(string gameName)
         {
             try
             {
@@ -805,109 +815,61 @@ namespace Vivy
 
                 int userId = GetUserIdByLogin(currentLogin);
 
-                string selectCmd = @"SELECT m.Text, m.SentAt, m.SenderId 
-                            FROM Messages m
-                            INNER JOIN Chats c ON m.ChatId = c.Id
-                            WHERE c.Title = @title AND c.UserId = @userId
-                            ORDER BY m.SentAt ASC";
-
+                string selectCmd = "SELECT Id, Name, Rules FROM BoardGames WHERE Name = @name AND UserId = @userId";
                 using var cmd = new SqliteCommand(selectCmd, connection);
-                cmd.Parameters.AddWithValue("@title", chatTitle);
+                cmd.Parameters.AddWithValue("@name", gameName);
                 cmd.Parameters.AddWithValue("@userId", userId);
 
-                chatHistory[chatTitle] = new List<(string sender, string text, DateTime sentAt)>();
-                richTextBox1.Clear();
-
-                Color mainTextColor = selectedTheme.Trim().StartsWith("White", StringComparison.OrdinalIgnoreCase)
-                    ? Color.Black
-                    : Color.White;
-
                 using var reader = cmd.ExecuteReader();
-                while (reader.Read())
+                if (reader.Read())
                 {
-                    string text = reader.GetString(0);
-                    DateTime sentAt = DateTime.Parse(reader.GetString(1));
-                    int senderId = reader.GetInt32(2);
+                    currentGameId = reader.GetInt32(0);
+                    currentGameName = reader.GetString(1);
+                    currentGameRules = reader.GetString(2);
 
-                    // SenderId 1 ist KI (Vivy), alle anderen sind Benutzer
-                    string sender = senderId == 1 ? "Vivy" : "User";
-                    chatHistory[chatTitle].Add((sender, text, sentAt));
-                    messageTimestamps.Add(sentAt);
+                    // Leere den Chat für neues Spiel
+                    richTextBox1.Clear();
+                    currentChatTitle = string.Empty;
+                    chatHistory.Clear();
 
-                    // Anzeige in RichTextBox
-                    if (sender == "User")
-                    {
-                        richTextBox1.SelectionColor = Color.DeepSkyBlue;
-                        richTextBox1.AppendText("Sie: ");
-                    }
-                    else
-                    {
-                        richTextBox1.SelectionColor = Color.MediumPurple;
-                        richTextBox1.AppendText("Vivy: ");
-                    }
+                    // Zeige Willkommensnachricht
+                    Color mainTextColor = selectedTheme.Trim().StartsWith("White", StringComparison.OrdinalIgnoreCase)
+                        ? Color.Black
+                        : Color.White;
 
+                    richTextBox1.SelectionColor = Color.MediumPurple;
+                    richTextBox1.AppendText("Vivy: ");
                     richTextBox1.SelectionColor = mainTextColor;
-                    richTextBox1.AppendText(text + "\n\n");
+                    richTextBox1.AppendText($"Hallo! Ich helfe dir gerne bei Fragen zu '{currentGameName}'. Was möchtest du wissen?\n\n");
                 }
-
-                richTextBox1.SelectionStart = richTextBox1.Text.Length;
-                richTextBox1.ScrollToCaret();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Fehler beim Laden des Chats: {ex.Message}", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show($"Fehler beim Laden des Spiels: {ex.Message}", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        private void listBoxHistory_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            if (listBoxHistory.SelectedItem != null)
-            {
-                currentChatTitle = listBoxHistory.SelectedItem.ToString();
-                LoadChatMessagesFromDatabase(currentChatTitle);
-            }
-        }
-
-        // Fügen Sie diese Methode hinzu, um einen neuen Chat zu starten
+        // GEÄNDERTE METHODE: Neues Spiel hinzufügen (früher btnNewChat_Click)
         private void btnNewChat_Click(object sender, EventArgs e)
         {
-            // Prüfen ob aktueller Chat ungespeicherte Nachrichten hat
-            if (!string.IsNullOrEmpty(textBoxInput.Text))
+            using (var addGameForm = new FrmAddGame(currentLogin, selectedTheme))
             {
-                var result = MessageBox.Show(
-                    "Möchten Sie wirklich einen neuen Chat starten? Ungesendete Nachrichten gehen verloren.",
-                    "Neuer Chat",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Question
-                );
-                
-                if (result == DialogResult.No)
-                    return;
+                if (addGameForm.ShowDialog() == DialogResult.OK)
+                {
+                    // Lade Spielliste neu
+                    LoadUserGamesFromDatabase();
+                }
             }
-            
-            // Leere den aktuellen Chat-Titel
-            currentChatTitle = string.Empty;
-            
-            // Leere die RichTextBox
-            richTextBox1.Clear();
-            
-            // Leere das Eingabefeld
-            textBoxInput.Clear();
-            
-            // Deselektiere den ausgewählten Chat in der ListBox
-            listBoxHistory.ClearSelected();
-            
-            // Fokus auf das Eingabefeld setzen
-            textBoxInput.Focus();
         }
 
+        // GEÄNDERTE METHODE: Spiel löschen (früher btnDeleteChat_Click)
         private void btnDeleteChat_Click(object sender, EventArgs e)
         {
-            // Prüfen ob ein Chat ausgewählt ist
+            // Prüfen ob ein Spiel ausgewählt ist
             if (listBoxHistory.SelectedItem == null)
             {
                 MessageBox.Show(
-                    "Bitte wählen Sie einen Chat aus, den Sie löschen möchten.",
+                    "Bitte wählen Sie ein Spiel aus, das Sie löschen möchten.",
                     "Vivy",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information
@@ -915,12 +877,12 @@ namespace Vivy
                 return;
             }
 
-            string chatToDelete = listBoxHistory.SelectedItem.ToString();
+            string gameToDelete = listBoxHistory.SelectedItem.ToString();
 
             // Bestätigung vom Benutzer einholen
             var result = MessageBox.Show(
-                $"Möchten Sie den Chat '{chatToDelete}' wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
-                "Chat löschen",
+                $"Möchten Sie das Spiel '{gameToDelete}' wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+                "Spiel löschen",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning
             );
@@ -936,45 +898,22 @@ namespace Vivy
 
                 int userId = GetUserIdByLogin(currentLogin);
 
-                // Hole ChatId
-                string selectChatIdCmd = "SELECT Id FROM Chats WHERE Title = @title AND UserId = @userId";
-                using var selectCmd = new SqliteCommand(selectChatIdCmd, connection);
-                selectCmd.Parameters.AddWithValue("@title", chatToDelete);
-                selectCmd.Parameters.AddWithValue("@userId", userId);
-
-                var chatIdResult = selectCmd.ExecuteScalar();
-                if (chatIdResult == null)
-                {
-                    MessageBox.Show("Chat wurde nicht in der Datenbank gefunden.", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-
-                int chatId = Convert.ToInt32(chatIdResult);
-
-                // Lösche zuerst alle Nachrichten des Chats
-                string deleteMessagesCmd = "DELETE FROM Messages WHERE ChatId = @chatId";
-                using var deleteMessagesCommand = new SqliteCommand(deleteMessagesCmd, connection);
-                deleteMessagesCommand.Parameters.AddWithValue("@chatId", chatId);
-                deleteMessagesCommand.ExecuteNonQuery();
-
-                // Lösche dann den Chat selbst
-                string deleteChatCmd = "DELETE FROM Chats WHERE Id = @chatId";
-                using var deleteChatCommand = new SqliteCommand(deleteChatCmd, connection);
-                deleteChatCommand.Parameters.AddWithValue("@chatId", chatId);
-                deleteChatCommand.ExecuteNonQuery();
+                // Lösche das Spiel
+                string deleteGameCmd = "DELETE FROM BoardGames WHERE Name = @name AND UserId = @userId";
+                using var deleteCmd = new SqliteCommand(deleteGameCmd, connection);
+                deleteCmd.Parameters.AddWithValue("@name", gameToDelete);
+                deleteCmd.Parameters.AddWithValue("@userId", userId);
+                deleteCmd.ExecuteNonQuery();
 
                 // Entferne aus der ListBox
-                listBoxHistory.Items.Remove(chatToDelete);
+                listBoxHistory.Items.Remove(gameToDelete);
 
-                // Entferne aus dem lokalen chatHistory Dictionary
-                if (chatHistory.ContainsKey(chatToDelete))
+                // Wenn das gelöschte Spiel das aktuelle Spiel war, leere die Anzeige
+                if (currentGameName == gameToDelete)
                 {
-                    chatHistory.Remove(chatToDelete);
-                }
-
-                // Wenn der gelöschte Chat der aktuelle Chat war, leere die Anzeige
-                if (currentChatTitle == chatToDelete)
-                {
+                    currentGameId = -1;
+                    currentGameName = string.Empty;
+                    currentGameRules = string.Empty;
                     currentChatTitle = string.Empty;
                     richTextBox1.Clear();
                     textBoxInput.Clear();
@@ -982,7 +921,7 @@ namespace Vivy
                 }
 
                 MessageBox.Show(
-                    "Chat erfolgreich gelöscht!",
+                    "Spiel erfolgreich gelöscht!",
                     "Vivy",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information
@@ -991,7 +930,7 @@ namespace Vivy
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"Fehler beim Löschen des Chats: {ex.Message}",
+                    $"Fehler beim Löschen des Spiels: {ex.Message}",
                     "Vivy",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error
