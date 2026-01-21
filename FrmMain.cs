@@ -17,6 +17,8 @@ using System.Threading;
 using System.Diagnostics;
 using OllamaSharp;
 using Microsoft.Extensions.AI;
+using System;
+using System.Management;
 
 namespace Vivy
 {
@@ -33,7 +35,10 @@ namespace Vivy
         private string currentGameName = "";
         private string currentGameRules = "";
 
-        private Color sideButtonTextColor = Color.FromArgb(                                                                                             0, 126, 249);
+        // Поле для процесу Ollama
+        private Process? ollamaProcess;
+
+        private Color sideButtonTextColor = Color.FromArgb(0, 126, 249);
         private Color panelElementTextColor = Color.White;
         private Color userNameTextColor = Color.FromArgb(0, 126, 149);
 
@@ -107,7 +112,7 @@ namespace Vivy
             int nWidthEllipse,
             int nHeightEllipse
         );
-	
+    
 
 
         public FrmMain(string login)
@@ -132,12 +137,359 @@ namespace Vivy
             SideButtonTextColor = Color.FromArgb(0, 126, 249);
             PanelElementTextColor = Color.White;
             UserNameTextColor = Color.FromArgb(0, 126, 149);
-	
+
 
 
             RestoreCustomUI();
+
+            // Запуск Ollama сервера
+            StartOllamaServer();
+
+            // Подписка на событие закрытия формы
+            this.FormClosing += FrmMain_FormClosing;
         }
-        
+
+        // Запуск Ollama сервера
+        private async void StartOllamaServer()
+        {
+            try
+            {
+                Debug.WriteLine("=== Start des Ollama Servers ===");
+                
+                // Überprüfen der Verfügbarkeit von ollama.exe
+                if (!IsOllamaInstalled())
+                {
+                    MessageBox.Show(
+                        "Ollama wurde im System nicht gefunden!\n\n" +
+                        "Laden Sie Ollama herunter und installieren Sie es von:\n" +
+                        "https://ollama.ai/download\n\n" +
+                        "Starten Sie das Programm nach der Installation neu.",
+                        "Ollama nicht installiert",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+                    return;
+                }
+
+                Debug.WriteLine("Ollama gefunden, starte Prozess...");
+
+                ollamaProcess = new Process();
+                ollamaProcess.StartInfo.FileName = "ollama";
+                ollamaProcess.StartInfo.Arguments = "serve";
+                ollamaProcess.StartInfo.UseShellExecute = false;
+                ollamaProcess.StartInfo.CreateNoWindow = true;
+                ollamaProcess.StartInfo.RedirectStandardOutput = true;
+                ollamaProcess.StartInfo.RedirectStandardError = true;
+                ollamaProcess.StartInfo.WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+                // Abonnieren der Ausgabe für Diagnose
+                ollamaProcess.OutputDataReceived += (s, e) => 
+                {
+                    if (!string.IsNullOrEmpty(e.Data))
+                        Debug.WriteLine($"Ollama OUT: {e.Data}");
+                };
+                
+                ollamaProcess.ErrorDataReceived += (s, e) => 
+                {
+                    if (!string.IsNullOrEmpty(e.Data))
+                    {
+                        Debug.WriteLine($"Ollama ERR: {e.Data}");
+                        
+                        // Fehler "address already in use" ignorieren - bedeutet bereits gestartet
+                        if (e.Data.Contains("address already in use") || e.Data.Contains("bind:"))
+                        {
+                            Debug.WriteLine("⚠ Ollama bereits im System gestartet");
+                        }
+                    }
+                };
+
+                bool started = ollamaProcess.Start();
+                
+                if (started)
+                {
+                    ollamaProcess.BeginOutputReadLine();
+                    ollamaProcess.BeginErrorReadLine();
+                    
+                    Debug.WriteLine($"Ollama Prozess gestartet (PID: {ollamaProcess.Id})");
+                    
+                    // WICHTIG: Warten auf vollständige Initialisierung (10-15 Sekunden)
+                    Debug.WriteLine("Warte auf vollständige Server-Initialisierung (dies kann 10-15 Sekunden dauern)...");
+                    
+                    // 15 Sekunden warten für Initialisierung
+                    await Task.Delay(15000);
+                    
+                    // Überprüfen, ob der Prozess beendet wurde
+                    if (ollamaProcess.HasExited)
+                    {
+                        Debug.WriteLine($"⚠ Ollama Prozess beendet mit Code: {ollamaProcess.ExitCode}");
+                        
+                        // Wenn Code 1 und "bind" Fehler - bedeutet bereits gestartet
+                        if (ollamaProcess.ExitCode == 1)
+                        {
+                            Debug.WriteLine("Möglicherweise bereits durch anderen Prozess gestartet. Überprüfe...");
+                            await Task.Delay(2000);
+                            
+                            // Finale Überprüfung mit erhöhtem Timeout
+                            if (await IsOllamaRunningAsync(timeoutSeconds: 5))
+                            {
+                                Debug.WriteLine("✓ Ja, Ollama läuft!");
+                                return;
+                            }
+                        }
+                        
+                        MessageBox.Show(
+                            $"Ollama wurde gestartet, aber unerwartet beendet.\n\n" +
+                            $"Exit-Code: {ollamaProcess.ExitCode}\n\n" +
+                            $"Versuchen Sie, Ollama manuell zu starten mit:\n" +
+                            $"ollama serve\n\n" +
+                            $"und überprüfen Sie die Fehlermeldungen.",
+                            "Fehler",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error
+                        );
+                        return;
+                    }
+                    
+                    Debug.WriteLine("Führe finale Überprüfung durch...");
+                    
+                    // Finale Überprüfung mit großem Timeout (die einzige Überprüfung!)
+                    if (await IsOllamaRunningAsync(timeoutSeconds: 10))
+                    {
+                        Debug.WriteLine("✓ Ollama Server erfolgreich gestartet und antwortet!");
+                        return;
+                    }
+                    
+                    // Wenn nach allem Server nicht antwortet
+                    Debug.WriteLine("⚠ Ollama gestartet, aber Server antwortet nicht nach 25 Sekunden");
+                    
+                    MessageBox.Show(
+                        "Ollama wurde gestartet, aber der Server antwortet nicht.\n\n" +
+                        "Mögliche Ursachen:\n" +
+                        "1. Ollama lädt ein großes Modell\n" +
+                        "2. Port 11434 wird von anderem Programm verwendet\n" +
+                        "3. Firewall blockiert die Verbindung\n\n" +
+                        "Versuchen Sie:\n" +
+                        "- Noch 1-2 Minuten warten\n" +
+                        "- Windows Task Manager überprüfen\n" +
+                        "- Oder 'ollama serve' manuell im Terminal starten",
+                        "Warnung",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning
+                    );
+                }
+                else
+                {
+                    Debug.WriteLine("✗ Ollama Prozess konnte nicht gestartet werden");
+                }
+            }
+            catch (System.ComponentModel.Win32Exception ex)
+            {
+                Debug.WriteLine($"Win32Exception: {ex.Message}");
+                Debug.WriteLine($"ErrorCode: {ex.ErrorCode}");
+                Debug.WriteLine($"NativeErrorCode: {ex.NativeErrorCode}");
+                
+                MessageBox.Show(
+                    $"Ollama konnte nicht gefunden oder gestartet werden.\n\n" +
+                    $"Fehler: {ex.Message}\n\n" +
+                    $"Lösung:\n" +
+                    $"1. Überprüfen Sie, ob Ollama installiert ist\n" +
+                    $"2. Starten Sie den Computer nach Installation neu\n" +
+                    $"3. Starten Sie cmd und prüfen: ollama --version\n" +
+                    $"4. Falls Befehl nicht funktioniert, Ollama neu installieren",
+                    "Startfehler",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Exception: {ex.GetType().Name}");
+                Debug.WriteLine($"Message: {ex.Message}");
+                Debug.WriteLine($"StackTrace: {ex.StackTrace}");
+                
+                MessageBox.Show(
+                    $"Unerwarteter Fehler beim Starten von Ollama:\n\n{ex.Message}",
+                    "Fehler",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+            }
+        }
+
+        // Überprüfung der Ollama Installation
+        private bool IsOllamaInstalled()
+        {
+            try
+            {
+                var testProcess = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "ollama",
+                        Arguments = "--version",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
+                    }
+                };
+                
+                testProcess.Start();
+                string output = testProcess.StandardOutput.ReadToEnd();
+                testProcess.WaitForExit(2000);
+                
+                Debug.WriteLine($"Ollama Versions-Check: {output}");
+                return testProcess.ExitCode == 0;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"IsOllamaInstalled Exception: {ex.Message}");
+                return false;
+            }
+        }
+
+        // Überprüfung, ob Ollama läuft (mit konfigurierbarem Timeout)
+        private async Task<bool> IsOllamaRunningAsync(int timeoutSeconds = 10)
+        {
+            try
+            {
+                using var httpClient = new HttpClient();
+                httpClient.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+                var response = await httpClient.GetAsync("http://localhost:11434/api/tags");
+                
+                Debug.WriteLine($"HTTP Check: StatusCode={response.StatusCode}");
+                return response.IsSuccessStatusCode;
+            }
+            catch (TaskCanceledException)
+            {
+                Debug.WriteLine($"HTTP Check: Timeout nach {timeoutSeconds} Sekunden");
+                return false;
+            }
+            catch (HttpRequestException ex)
+            {
+                Debug.WriteLine($"HTTP Check: Verbindungsfehler - {ex.Message}");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"HTTP Check fehlgeschlagen: {ex.Message}");
+                return false;
+            }
+        }
+
+        // Stoppen des Ollama Servers
+        private void StopOllamaServer()
+        {
+            try
+            {
+                if (ollamaProcess != null && !ollamaProcess.HasExited)
+                {
+                    Debug.WriteLine("Stoppe Ollama...");
+                    
+                    // Получаем ID родительского процесса
+                    int processId = ollamaProcess.Id;
+                    
+                    // Закрываем все связанные процессы ollama
+                    KillProcessAndChildren(processId);
+                    
+                    ollamaProcess.Dispose();
+                    ollamaProcess = null;
+
+                    Debug.WriteLine("Ollama Server gestoppt");
+                }
+                else
+                {
+                    // Если процесс не отслеживается, ищем все процессы ollama
+                    Debug.WriteLine("Suche nach verbleibenden Ollama-Prozessen...");
+                    KillAllOllamaProcesses();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Fehler beim Stoppen von Ollama: {ex.Message}");
+            }
+        }
+
+        // Убивает процесс и все его дочерние процессы
+        private void KillProcessAndChildren(int pid)
+        {
+            try
+            {
+                // Используем ManagementObjectSearcher для поиска дочерних процессов
+                var searcher = new System.Management.ManagementObjectSearcher(
+                    $"SELECT * FROM Win32_Process WHERE ParentProcessId={pid}");
+                
+                var collection = searcher.Get();
+                
+                // Рекурсивно закрываем дочерние процессы
+                foreach (var item in collection)
+                {
+                    int childProcessId = Convert.ToInt32(item["ProcessId"]);
+                    KillProcessAndChildren(childProcessId);
+                }
+                
+                // Закрываем сам процесс
+                try
+                {
+                    Process proc = Process.GetProcessById(pid);
+                    if (!proc.HasExited)
+                    {
+                        proc.Kill();
+                        proc.WaitForExit(2000);
+                        Debug.WriteLine($"Prozess {pid} beendet");
+                    }
+                }
+                catch (ArgumentException)
+                {
+                    // Процесс уже завершен
+                    Debug.WriteLine($"Prozess {pid} bereits beendet");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Fehler beim Beenden von Prozess {pid}: {ex.Message}");
+            }
+        }
+
+        // Закрывает все процессы ollama в системе
+        private void KillAllOllamaProcesses()
+        {
+            try
+            {
+                var ollamaProcesses = Process.GetProcessesByName("ollama");
+                
+                foreach (var proc in ollamaProcesses)
+                {
+                    try
+                    {
+                        Debug.WriteLine($"Beende Ollama-Prozess: PID={proc.Id}");
+                        proc.Kill();
+                        proc.WaitForExit(2000);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Fehler beim Beenden von Ollama-Prozess {proc.Id}: {ex.Message}");
+                    }
+                    finally
+                    {
+                        proc.Dispose();
+                    }
+                }
+                
+                Debug.WriteLine($"Insgesamt {ollamaProcesses.Length} Ollama-Prozesse beendet");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Fehler beim Suchen von Ollama-Prozessen: {ex.Message}");
+            }
+        }
+
+        // Event-Handler für Formular schließen
+        private void FrmMain_FormClosing(object? sender, FormClosingEventArgs e)
+        {
+            StopOllamaServer();
+        }
+
         private Dictionary<string, List<(string sender, string text, DateTime sentAt)>> chatHistory = new();
         private string currentChatTitle = "";
 
@@ -145,7 +497,6 @@ namespace Vivy
         {
             // Setze den Benutzernamen
             Usder.Text = currentLogin;
-            
             LoadAndApplyUserSettings();
             LoadUserGamesFromDatabase(); // Geändert: Lade Spiele statt Chats
 
@@ -388,56 +739,138 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                     return;
                 }
 
+                try
+                {
+                    // WICHTIG: Werte VOR dem Neuaufbau speichern
+                    bool speakEnabled = cbSpeakResponses.Checked;
+                    
+                    // KRITISCH: Aktuelles Spiel speichern!
+                    int savedGameId = currentGameId;
+                    string savedGameName = currentGameName;
+                    string savedGameRules = currentGameRules;
+                    string? selectedGameInList = listBoxHistory.SelectedItem?.ToString();
 
-                ApplyTheme(theme);
-                var selectedTheme = cbTheme.SelectedItem;
-                var selectedModel = cbModel.SelectedItem;
+                    // 1. ZUERST in Datenbank speichern (mit InterfaceLanguage!)
+                    string connectionString = "Data Source=vivy.db";
+                    using var connection = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
+                    connection.Open();
 
-                var selectedSpeak = cbSpeakResponses.Checked;
+                    string updateCmd = @"
+                        UPDATE Users SET 
+                        Theme = @theme,  
+                        SpeakResponsesEnabled = @speak, 
+                        Model = @model,
+                        InterfaceLanguage = @language
+                        WHERE Login = @login";
+                    using var cmd = new Microsoft.Data.Sqlite.SqliteCommand(updateCmd, connection);
+                    cmd.Parameters.AddWithValue("@theme", theme);
+                    cmd.Parameters.AddWithValue("@speak", speakEnabled ? 1 : 0);
+                    cmd.Parameters.AddWithValue("@model", model);
+                    cmd.Parameters.AddWithValue("@language", interfaceLanguage);
+                    cmd.Parameters.AddWithValue("@login", currentLogin);
+                    
+                    int rowsAffected = cmd.ExecuteNonQuery();
+                    
+                    Debug.WriteLine($"Einstellungen gespeichert: Theme={theme}, Speak={speakEnabled}, Model={model}, Language={interfaceLanguage}, RowsAffected={rowsAffected}");
+                    
+                    if (rowsAffected == 0)
+                    {
+                        MessageBox.Show(
+                            "Benutzer nicht in der Datenbank gefunden!",
+                            "Fehler",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error
+                        );
+                        return;
+                    }
 
+                    // 2. Jetzt UI neu aufbauen
+                    ApplyTheme(theme);
+                    
+                    this.Controls.Clear();
+                    InitializeComponent();
+                    
+                    // WICHTIG: Event Handler WIEDER hinzufügen!
+                    listBoxHistory.SelectedIndexChanged += listBoxHistory_SelectedIndexChanged;
+                    
+                    RestoreCustomUI();
+                    
+                    // 3. Benutzerdaten wiederherstellen
+                    Usder.Text = currentLogin;
+                    LoadUserAvatar();
+                    
+                    // 4. WICHTIG: Spiele neu laden!
+                    LoadUserGamesFromDatabase();
+                    
+                    // 5. KRITISCH: Gespeichertes Spiel wiederherstellen!
+                    currentGameId = savedGameId;
+                    currentGameName = savedGameName;
+                    currentGameRules = savedGameRules;
+                    
+                    Debug.WriteLine($"Wiederherstellung: GameID={currentGameId}, GameName={currentGameName}");
+                    
+                    // 6. Spiel in ListBox auswählen
+                    if (!string.IsNullOrEmpty(selectedGameInList))
+                    {
+                        for (int i = 0; i < listBoxHistory.Items.Count; i++)
+                        {
+                            if (listBoxHistory.Items[i].ToString() == selectedGameInList)
+                            {
+                                listBoxHistory.SelectedIndex = i;
+                                Debug.WriteLine($"Spiel ausgewählt: {selectedGameInList} (Index={i})");
+                                break;
+                            }
+                        }
+                        
+                        // Nachrichten neu laden
+                        if (currentGameId != -1)
+                        {
+                            LoadGameMessagesFromDatabase(currentGameId);
+                        }
+                    }
+                    
+                    // 7. Gespeicherte Werte in ComboBoxen setzen
+                    cbTheme.SelectedItem = theme;
+                    cbModel.SelectedItem = model;
+                    cbLanguage.SelectedItem = interfaceLanguage;
+                    cbSpeakResponses.Checked = speakEnabled;
+                    
+                    // 8. Theme anwenden
+                    ApplyTheme(theme);
+                    
+                    // 9. Ollama Server neu starten
+                    StartOllamaServer();
+                    this.FormClosing += FrmMain_FormClosing;
 
-                this.Controls.Clear();
-                InitializeComponent();
-                RestoreCustomUI();
-                Usder.Text = currentLogin;
-                LoadUserAvatar();
-                ApplyTheme(selectedTheme?.ToString() ?? string.Empty);
-
-                cbTheme.SelectedItem = selectedTheme;
-                cbModel.SelectedItem = selectedModel;
-
-                cbSpeakResponses.Checked = selectedSpeak;
-
-                cbLanguage.SelectedItem = interfaceLanguage;
-
-
-                Usder.Text = currentLogin;
-                LoadUserAvatar();
-
-                ApplyTheme(theme);
-
-                // Speichere die Einstellungen in der DB
-                string connectionString = "Data Source=vivy.db";
-                using var connection = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
-                connection.Open();
-
-                string updateCmd = @"
-                UPDATE Users SET 
-                Theme = @theme,  
-                SpeakResponsesEnabled = @speak, 
-                Model = @model
-                WHERE Login = @login";
-                using var cmd = new Microsoft.Data.Sqlite.SqliteCommand(updateCmd, connection);
-                cmd.Parameters.AddWithValue("@theme", theme);
-
-                cmd.Parameters.AddWithValue("@speak", cbSpeakResponses.Checked ? 1 : 0);
-
-                cmd.Parameters.AddWithValue("@model", model);
-                cmd.Parameters.AddWithValue("@login", currentLogin);
-                cmd.ExecuteNonQuery();
+                    MessageBox.Show(
+                        "Einstellungen erfolgreich gespeichert!",
+                        "Erfolg",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information
+                    );
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Fehler beim Speichern: {ex.Message}");
+                    Debug.WriteLine($"StackTrace: {ex.StackTrace}");
+                    
+                    MessageBox.Show(
+                        $"Fehler beim Speichern der Einstellungen:\n\n{ex.Message}",
+                        "Fehler",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+                }
             }
-
-            MessageBox.Show("Änderungen gespeichert!", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Information); ;
+            else
+            {
+                MessageBox.Show(
+                    "Bitte füllen Sie alle Felder aus!",
+                    "Warnung",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning
+                );
+            }
         }
 
 
@@ -482,7 +915,10 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
         }
 
         private SpeechSynthesizer synthesizer = new SpeechSynthesizer();
-	
+
+
+
+
 
 
         private void btnLogout_Click(object sender, EventArgs e)
@@ -632,7 +1068,7 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
             using var connection = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
             connection.Open();
 
-            string selectCmd = "SELECT Theme, SpeakResponsesEnabled, Model FROM Users WHERE Login = @login";
+            string selectCmd = "SELECT Theme, SpeakResponsesEnabled, Model, InterfaceLanguage FROM Users WHERE Login = @login";
             using var cmd = new Microsoft.Data.Sqlite.SqliteCommand(selectCmd, connection);
             cmd.Parameters.AddWithValue("@login", currentLogin);
 
@@ -642,12 +1078,12 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                 string theme = reader.IsDBNull(0) ? "Dark" : reader.GetString(0);
                 bool speak = !reader.IsDBNull(1) && reader.GetInt32(1) == 1;
                 string model = reader.IsDBNull(2) ? "gpt-3.5-turbo" : reader.GetString(2);
+                string language = reader.IsDBNull(3) ? "English" : reader.GetString(3);
 
                 cbTheme.SelectedItem = theme;
-
                 cbSpeakResponses.Checked = speak;
-
                 cbModel.SelectedItem = model;
+                cbLanguage.SelectedItem = language;
 
                 ApplyTheme(theme);
             }
@@ -745,76 +1181,6 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
             cmd.ExecuteNonQuery();
         }
 
-        // NEUE METHODE: Laden der Nachrichten für ein bestimmtes Spiel
-        private void LoadGameMessagesFromDatabase(int gameId)
-        {
-            try
-            {
-                string connectionString = "Data Source=vivy.db";
-                using var connection = new SqliteConnection(connectionString);
-                connection.Open();
-
-                int userId = GetUserIdByLogin(currentLogin);
-
-                // Lade alle Nachrichten für dieses Spiel
-                string selectCmd = @"SELECT m.Text, m.SentAt, m.SenderId 
-                                    FROM Messages m
-                                    WHERE m.GameID = @gameId
-                                    ORDER BY m.SentAt ASC";
-
-                using var cmd = new SqliteCommand(selectCmd, connection);
-                cmd.Parameters.AddWithValue("@gameId", gameId);
-
-                richTextBox1.Clear();
-                messageTimestamps.Clear();
-
-                Color mainTextColor = selectedTheme.Trim().StartsWith("White", StringComparison.OrdinalIgnoreCase)
-                    ? Color.Black
-                    : Color.White;
-
-                // Zeige Willkommensnachricht
-                richTextBox1.SelectionColor = Color.MediumPurple;
-                richTextBox1.AppendText("Vivy: ");
-                richTextBox1.SelectionColor = mainTextColor;
-                richTextBox1.AppendText($"Hallo! Ich helfe dir gerne bei Fragen zu '{currentGameName}'. Was möchtest du wissen?\n\n");
-
-                using var reader = cmd.ExecuteReader();
-                while (reader.Read())
-                {
-                    string text = reader.GetString(0);
-                    DateTime sentAt = DateTime.Parse(reader.GetString(1));
-                    int senderId = reader.GetInt32(2);
-
-                    messageTimestamps.Add(sentAt);
-
-                    // SenderId 1 ist KI (Vivy), alle anderen sind Benutzer
-                    string sender = senderId == 1 ? "Vivy" : "User";
-
-                    // Anzeige in RichTextBox
-                    if (sender == "User")
-                    {
-                        richTextBox1.SelectionColor = Color.DeepSkyBlue;
-                        richTextBox1.AppendText("Sie: ");
-                    }
-                    else
-                    {
-                        richTextBox1.SelectionColor = Color.MediumPurple;
-                        richTextBox1.AppendText("Vivy: ");
-                    }
-
-                    richTextBox1.SelectionColor = mainTextColor;
-                    richTextBox1.AppendText(text + "\n\n");
-                }
-
-                richTextBox1.SelectionStart = richTextBox1.Text.Length;
-                richTextBox1.ScrollToCaret();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Fehler beim Laden der Nachrichten: {ex.Message}", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
         // NEUE METHODE: Spiel aus Datenbank laden
         private void LoadGameFromDatabase(string gameName)
         {
@@ -838,25 +1204,98 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                     currentGameName = reader.GetString(1);
                     currentGameRules = reader.GetString(2);
 
-                    // Leere den Chat für neues Spiel
-                    richTextBox1.Clear();
+                    // Leere den Chat-Verlauf
                     currentChatTitle = string.Empty;
                     chatHistory.Clear();
-
-                    // Zeige Willkommensnachricht
-                    Color mainTextColor = selectedTheme.Trim().StartsWith("White", StringComparison.OrdinalIgnoreCase)
-                        ? Color.Black
-                        : Color.White;
-
-                    richTextBox1.SelectionColor = Color.MediumPurple;
-                    richTextBox1.AppendText("Vivy: ");
-                    richTextBox1.SelectionColor = mainTextColor;
-                    richTextBox1.AppendText($"Hallo! Ich helfe dir gerne bei Fragen zu '{currentGameName}'. Was möchtest du wissen?\n\n");
+                    
+                    Debug.WriteLine($"Spiel geladen: ID={currentGameId}, Name={currentGameName}");
+            
+                    // WICHTIG: Reader MUSS geschlossen werden, bevor LoadGameMessagesFromDatabase aufgerufen wird!
                 }
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Fehler beim Laden des Spiels: {ex.Message}", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Debug.WriteLine($"LoadGameFromDatabase Error: {ex.Message}");
+            }
+        }
+
+        // NEUE METHODE: Laden der Nachrichten für ein bestimmtes Spiel
+        private void LoadGameMessagesFromDatabase(int gameId)
+        {
+            try
+            {
+                string connectionString = "Data Source=vivy.db";
+                using var connection = new SqliteConnection(connectionString);
+                connection.Open();
+
+                // Lade alle Nachrichten für dieses Spiel
+                string selectCmd = @"SELECT m.Text, m.SentAt, m.SenderId 
+                            FROM Messages m
+                            WHERE m.GameID = @gameId
+                            ORDER BY m.SentAt ASC";
+
+                using var cmd = new SqliteCommand(selectCmd, connection);
+                cmd.Parameters.AddWithValue("@gameId", gameId);
+
+                richTextBox1.Clear();
+                messageTimestamps.Clear();
+
+                Color mainTextColor = selectedTheme.Trim().StartsWith("White", StringComparison.OrdinalIgnoreCase)
+                    ? Color.Black
+                    : Color.White;
+
+                // WICHTIG: Zähle die Nachrichten
+                int messageCount = 0;
+        
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    string text = reader.GetString(0);
+                    DateTime sentAt = DateTime.Parse(reader.GetString(1));
+                    int senderId = reader.GetInt32(2);
+
+                    messageTimestamps.Add(sentAt);
+                    messageCount++;
+
+                    // SenderId 1 ist KI (Vivy), alle anderen sind Benutzer
+                    string sender = senderId == 1 ? "Vivy" : "User";
+
+                    // Anzeige in RichTextBox
+                    if (sender == "User")
+                    {
+                        richTextBox1.SelectionColor = Color.DeepSkyBlue;
+                        richTextBox1.AppendText("Sie: ");
+                    }
+                    else
+                    {
+                        richTextBox1.SelectionColor = Color.MediumPurple;
+                        richTextBox1.AppendText("Vivy: ");
+                    }
+
+                    richTextBox1.SelectionColor = mainTextColor;
+                    richTextBox1.AppendText(text + "\n\n");
+                }
+        
+                Debug.WriteLine($"Nachrichten geladen: {messageCount} Nachrichten für GameID={gameId}");
+        
+                // Wenn keine Nachrichten vorhanden sind, zeige Willkommensnachricht
+                if (messageCount == 0)
+                {
+                    richTextBox1.SelectionColor = Color.MediumPurple;
+                    richTextBox1.AppendText("Vivy: ");
+                    richTextBox1.SelectionColor = mainTextColor;
+                    richTextBox1.AppendText($"Hallo! Ich helfe dir gerne bei Fragen zu '{currentGameName}'. Was möchtest du wissen?\n\n");
+                }
+
+                richTextBox1.SelectionStart = richTextBox1.Text.Length;
+                richTextBox1.ScrollToCaret();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Fehler beim Laden der Nachrichten: {ex.Message}", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Debug.WriteLine($"LoadGameMessagesFromDatabase Error: {ex.Message}");
+                Debug.WriteLine($"StackTrace: {ex.StackTrace}");
             }
         }
 
@@ -952,42 +1391,42 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
         private void listBoxHistory_SelectedIndexChanged(object? sender, EventArgs e)
         {
             if (listBoxHistory.SelectedItem is string selectedGame)
-    {
-        LoadGameFromDatabase(selectedGame);
-        if (currentGameId != -1)
-        {
-            LoadGameMessagesFromDatabase(currentGameId);
+            {
+                LoadGameFromDatabase(selectedGame);
+                if (currentGameId != -1)
+                {
+                    LoadGameMessagesFromDatabase(currentGameId);
+                }
+            }
         }
-    }
-}
 
         // Lädt alle Spiele des aktuellen Benutzers aus der Datenbank und zeigt sie in der ListBox an
-private void LoadUserGamesFromDatabase()
-{
-    try
-    {
-        string connectionString = "Data Source=vivy.db";
-        using var connection = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
-        connection.Open();
-
-        int userId = GetUserIdByLogin(currentLogin);
-
-        string selectCmd = "SELECT Name FROM BoardGames WHERE UserId = @userId ORDER BY Name ASC";
-        using var cmd = new Microsoft.Data.Sqlite.SqliteCommand(selectCmd, connection);
-        cmd.Parameters.AddWithValue("@userId", userId);
-
-        using var reader = cmd.ExecuteReader();
-        listBoxHistory.Items.Clear();
-        while (reader.Read())
+        private void LoadUserGamesFromDatabase()
         {
-            string gameName = reader.GetString(0);
-            listBoxHistory.Items.Add(gameName);
+            try
+            {
+                string connectionString = "Data Source=vivy.db";
+                using var connection = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
+                connection.Open();
+
+                int userId = GetUserIdByLogin(currentLogin);
+
+                string selectCmd = "SELECT Name FROM BoardGames WHERE UserId = @userId ORDER BY Name ASC";
+                using var cmd = new Microsoft.Data.Sqlite.SqliteCommand(selectCmd, connection);
+                cmd.Parameters.AddWithValue("@userId", userId);
+
+                using var reader = cmd.ExecuteReader();
+                listBoxHistory.Items.Clear();
+                while (reader.Read())
+                {
+                    string gameName = reader.GetString(0);
+                    listBoxHistory.Items.Add(gameName);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Fehler beim Laden der Spiele: {ex.Message}", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
-    }
-    catch (Exception ex)
-    {
-        MessageBox.Show($"Fehler beim Laden der Spiele: {ex.Message}", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Error);
-    }
-}
     }
 }
