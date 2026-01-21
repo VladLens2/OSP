@@ -112,7 +112,7 @@ namespace Vivy
             int nWidthEllipse,
             int nHeightEllipse
         );
-    
+
 
 
         public FrmMain(string login)
@@ -140,7 +140,11 @@ namespace Vivy
 
 
 
+
             RestoreCustomUI();
+
+            // ДОБАВИТЬ: Загрузка аватара при запуске
+            LoadUserAvatar();
 
             // Запуск Ollama сервера
             StartOllamaServer();
@@ -155,7 +159,7 @@ namespace Vivy
             try
             {
                 Debug.WriteLine("=== Start des Ollama Servers ===");
-                
+
                 // Überprüfen der Verfügbarkeit von ollama.exe
                 if (!IsOllamaInstalled())
                 {
@@ -183,18 +187,18 @@ namespace Vivy
                 ollamaProcess.StartInfo.WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
                 // Abonnieren der Ausgabe für Diagnose
-                ollamaProcess.OutputDataReceived += (s, e) => 
+                ollamaProcess.OutputDataReceived += (s, e) =>
                 {
                     if (!string.IsNullOrEmpty(e.Data))
                         Debug.WriteLine($"Ollama OUT: {e.Data}");
                 };
-                
-                ollamaProcess.ErrorDataReceived += (s, e) => 
+
+                ollamaProcess.ErrorDataReceived += (s, e) =>
                 {
                     if (!string.IsNullOrEmpty(e.Data))
                     {
                         Debug.WriteLine($"Ollama ERR: {e.Data}");
-                        
+
                         // Fehler "address already in use" ignorieren - bedeutet bereits gestartet
                         if (e.Data.Contains("address already in use") || e.Data.Contains("bind:"))
                         {
@@ -204,31 +208,31 @@ namespace Vivy
                 };
 
                 bool started = ollamaProcess.Start();
-                
+
                 if (started)
                 {
                     ollamaProcess.BeginOutputReadLine();
                     ollamaProcess.BeginErrorReadLine();
-                    
+
                     Debug.WriteLine($"Ollama Prozess gestartet (PID: {ollamaProcess.Id})");
-                    
+
                     // WICHTIG: Warten auf vollständige Initialisierung (10-15 Sekunden)
                     Debug.WriteLine("Warte auf vollständige Server-Initialisierung (dies kann 10-15 Sekunden dauern)...");
-                    
+
                     // 15 Sekunden warten für Initialisierung
                     await Task.Delay(15000);
-                    
+
                     // Überprüfen, ob der Prozess beendet wurde
                     if (ollamaProcess.HasExited)
                     {
                         Debug.WriteLine($"⚠ Ollama Prozess beendet mit Code: {ollamaProcess.ExitCode}");
-                        
+
                         // Wenn Code 1 und "bind" Fehler - bedeutet bereits gestartet
                         if (ollamaProcess.ExitCode == 1)
                         {
                             Debug.WriteLine("Möglicherweise bereits durch anderen Prozess gestartet. Überprüfe...");
                             await Task.Delay(2000);
-                            
+
                             // Finale Überprüfung mit erhöhtem Timeout
                             if (await IsOllamaRunningAsync(timeoutSeconds: 5))
                             {
@@ -236,7 +240,7 @@ namespace Vivy
                                 return;
                             }
                         }
-                        
+
                         MessageBox.Show(
                             $"Ollama wurde gestartet, aber unerwartet beendet.\n\n" +
                             $"Exit-Code: {ollamaProcess.ExitCode}\n\n" +
@@ -249,19 +253,19 @@ namespace Vivy
                         );
                         return;
                     }
-                    
+
                     Debug.WriteLine("Führe finale Überprüfung durch...");
-                    
+
                     // Finale Überprüfung mit großem Timeout (die einzige Überprüfung!)
                     if (await IsOllamaRunningAsync(timeoutSeconds: 10))
                     {
                         Debug.WriteLine("✓ Ollama Server erfolgreich gestartet und antwortet!");
                         return;
                     }
-                    
+
                     // Wenn nach allem Server nicht antwortet
                     Debug.WriteLine("⚠ Ollama gestartet, aber Server antwortet nicht nach 25 Sekunden");
-                    
+
                     MessageBox.Show(
                         "Ollama wurde gestartet, aber der Server antwortet nicht.\n\n" +
                         "Mögliche Ursachen:\n" +
@@ -287,7 +291,7 @@ namespace Vivy
                 Debug.WriteLine($"Win32Exception: {ex.Message}");
                 Debug.WriteLine($"ErrorCode: {ex.ErrorCode}");
                 Debug.WriteLine($"NativeErrorCode: {ex.NativeErrorCode}");
-                
+
                 MessageBox.Show(
                     $"Ollama konnte nicht gefunden oder gestartet werden.\n\n" +
                     $"Fehler: {ex.Message}\n\n" +
@@ -306,7 +310,7 @@ namespace Vivy
                 Debug.WriteLine($"Exception: {ex.GetType().Name}");
                 Debug.WriteLine($"Message: {ex.Message}");
                 Debug.WriteLine($"StackTrace: {ex.StackTrace}");
-                
+
                 MessageBox.Show(
                     $"Unerwarteter Fehler beim Starten von Ollama:\n\n{ex.Message}",
                     "Fehler",
@@ -333,11 +337,11 @@ namespace Vivy
                         RedirectStandardError = true
                     }
                 };
-                
+
                 testProcess.Start();
                 string output = testProcess.StandardOutput.ReadToEnd();
                 testProcess.WaitForExit(2000);
-                
+
                 Debug.WriteLine($"Ollama Versions-Check: {output}");
                 return testProcess.ExitCode == 0;
             }
@@ -356,7 +360,7 @@ namespace Vivy
                 using var httpClient = new HttpClient();
                 httpClient.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
                 var response = await httpClient.GetAsync("http://localhost:11434/api/tags");
-                
+
                 Debug.WriteLine($"HTTP Check: StatusCode={response.StatusCode}");
                 return response.IsSuccessStatusCode;
             }
@@ -385,13 +389,13 @@ namespace Vivy
                 if (ollamaProcess != null && !ollamaProcess.HasExited)
                 {
                     Debug.WriteLine("Stoppe Ollama...");
-                    
+
                     // Получаем ID родительского процесса
                     int processId = ollamaProcess.Id;
-                    
+
                     // Закрываем все связанные процессы ollama
                     KillProcessAndChildren(processId);
-                    
+
                     ollamaProcess.Dispose();
                     ollamaProcess = null;
 
@@ -418,16 +422,16 @@ namespace Vivy
                 // Используем ManagementObjectSearcher для поиска дочерних процессов
                 var searcher = new System.Management.ManagementObjectSearcher(
                     $"SELECT * FROM Win32_Process WHERE ParentProcessId={pid}");
-                
+
                 var collection = searcher.Get();
-                
+
                 // Рекурсивно закрываем дочерние процессы
                 foreach (var item in collection)
                 {
                     int childProcessId = Convert.ToInt32(item["ProcessId"]);
                     KillProcessAndChildren(childProcessId);
                 }
-                
+
                 // Закрываем сам процесс
                 try
                 {
@@ -457,7 +461,7 @@ namespace Vivy
             try
             {
                 var ollamaProcesses = Process.GetProcessesByName("ollama");
-                
+
                 foreach (var proc in ollamaProcesses)
                 {
                     try
@@ -475,7 +479,7 @@ namespace Vivy
                         proc.Dispose();
                     }
                 }
-                
+
                 Debug.WriteLine($"Insgesamt {ollamaProcesses.Length} Ollama-Prozesse beendet");
             }
             catch (Exception ex)
@@ -713,14 +717,32 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
             cmd.Parameters.AddWithValue("@login", currentLogin);
 
             var avatarPath = cmd.ExecuteScalar() as string;
+
+            // ИСПРАВЛЕНИЕ: Освобождаем старое изображение
+            if (picUserAvatar.Image != null && picUserAvatar.Image != Properties.Resources.DefaultAvatar)
+            {
+                var oldImage = picUserAvatar.Image;
+                picUserAvatar.Image = null;
+                oldImage.Dispose();
+            }
+
             if (!string.IsNullOrEmpty(avatarPath) && System.IO.File.Exists(avatarPath))
             {
-                using var ms = new System.IO.MemoryStream(System.IO.File.ReadAllBytes(avatarPath));
-                picUserAvatar.Image = Image.FromStream(ms);
+                try
+                {
+                    // ИСПРАВЛЕНИЕ: Загрузка через копию в памяти, чтобы не блокировать файл
+                    using var stream = new System.IO.FileStream(avatarPath, System.IO.FileMode.Open, System.IO.FileAccess.Read);
+                    picUserAvatar.Image = Image.FromStream(stream);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Ошибка загрузки аватара: {ex.Message}");
+                    picUserAvatar.Image = Properties.Resources.DefaultAvatar;
+                }
             }
             else
             {
-                // Verwende Standard-Avatar aus Ressourcen
+                // Используем стандартный аватар из ресурсов
                 picUserAvatar.Image = Properties.Resources.DefaultAvatar;
             }
 
@@ -743,7 +765,7 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                 {
                     // WICHTIG: Werte VOR dem Neuaufbau speichern
                     bool speakEnabled = cbSpeakResponses.Checked;
-                    
+
                     // KRITISCH: Aktuelles Spiel speichern!
                     int savedGameId = currentGameId;
                     string savedGameName = currentGameName;
@@ -768,11 +790,11 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                     cmd.Parameters.AddWithValue("@model", model);
                     cmd.Parameters.AddWithValue("@language", interfaceLanguage);
                     cmd.Parameters.AddWithValue("@login", currentLogin);
-                    
+
                     int rowsAffected = cmd.ExecuteNonQuery();
-                    
+
                     Debug.WriteLine($"Einstellungen gespeichert: Theme={theme}, Speak={speakEnabled}, Model={model}, Language={interfaceLanguage}, RowsAffected={rowsAffected}");
-                    
+
                     if (rowsAffected == 0)
                     {
                         MessageBox.Show(
@@ -786,29 +808,29 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
 
                     // 2. Jetzt UI neu aufbauen
                     ApplyTheme(theme);
-                    
+
                     this.Controls.Clear();
                     InitializeComponent();
-                    
+
                     // WICHTIG: Event Handler WIEDER hinzufügen!
                     listBoxHistory.SelectedIndexChanged += listBoxHistory_SelectedIndexChanged;
-                    
+
                     RestoreCustomUI();
-                    
+
                     // 3. Benutzerdaten wiederherstellen
                     Usder.Text = currentLogin;
                     LoadUserAvatar();
-                    
+
                     // 4. WICHTIG: Spiele neu laden!
                     LoadUserGamesFromDatabase();
-                    
+
                     // 5. KRITISCH: Gespeichertes Spiel wiederherstellen!
                     currentGameId = savedGameId;
                     currentGameName = savedGameName;
                     currentGameRules = savedGameRules;
-                    
+
                     Debug.WriteLine($"Wiederherstellung: GameID={currentGameId}, GameName={currentGameName}");
-                    
+
                     // 6. Spiel in ListBox auswählen
                     if (!string.IsNullOrEmpty(selectedGameInList))
                     {
@@ -821,23 +843,23 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                                 break;
                             }
                         }
-                        
+
                         // Nachrichten neu laden
                         if (currentGameId != -1)
                         {
                             LoadGameMessagesFromDatabase(currentGameId);
                         }
                     }
-                    
+
                     // 7. Gespeicherte Werte in ComboBoxen setzen
                     cbTheme.SelectedItem = theme;
                     cbModel.SelectedItem = model;
                     cbLanguage.SelectedItem = interfaceLanguage;
                     cbSpeakResponses.Checked = speakEnabled;
-                    
+
                     // 8. Theme anwenden
                     ApplyTheme(theme);
-                    
+
                     // 9. Ollama Server neu starten
                     StartOllamaServer();
                     this.FormClosing += FrmMain_FormClosing;
@@ -853,7 +875,7 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                 {
                     Debug.WriteLine($"Fehler beim Speichern: {ex.Message}");
                     Debug.WriteLine($"StackTrace: {ex.StackTrace}");
-                    
+
                     MessageBox.Show(
                         $"Fehler beim Speichern der Einstellungen:\n\n{ex.Message}",
                         "Fehler",
@@ -915,7 +937,6 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
         }
 
         private SpeechSynthesizer synthesizer = new SpeechSynthesizer();
-
 
 
 
@@ -1207,9 +1228,9 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                     // Leere den Chat-Verlauf
                     currentChatTitle = string.Empty;
                     chatHistory.Clear();
-                    
+
                     Debug.WriteLine($"Spiel geladen: ID={currentGameId}, Name={currentGameName}");
-            
+
                     // WICHTIG: Reader MUSS geschlossen werden, bevor LoadGameMessagesFromDatabase aufgerufen wird!
                 }
             }
@@ -1247,7 +1268,7 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
 
                 // WICHTIG: Zähle die Nachrichten
                 int messageCount = 0;
-        
+
                 using var reader = cmd.ExecuteReader();
                 while (reader.Read())
                 {
@@ -1276,9 +1297,9 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                     richTextBox1.SelectionColor = mainTextColor;
                     richTextBox1.AppendText(text + "\n\n");
                 }
-        
+
                 Debug.WriteLine($"Nachrichten geladen: {messageCount} Nachrichten für GameID={gameId}");
-        
+
                 // Wenn keine Nachrichten vorhanden sind, zeige Willkommensnachricht
                 if (messageCount == 0)
                 {
@@ -1427,6 +1448,26 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
             {
                 MessageBox.Show($"Fehler beim Laden der Spiele: {ex.Message}", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void llGithub_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "https://ollama.com",
+                UseShellExecute = true
+            };
+            Process.Start(psi);
+        }
+
+        private void llOllama_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "https://github.com/VladLens2/OSP",
+                UseShellExecute = true
+            };
+            Process.Start(psi);
         }
     }
 }
