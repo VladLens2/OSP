@@ -720,9 +720,6 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
             using var connection = new SqliteConnection(connectionString);
             connection.Open();
 
-            // Hole ChatId oder erstelle neuen Chat
-            int chatId = GetOrCreateChatId(chatTitle, connection);
-
             // Hole SenderId - verwende customSenderId falls angegeben, sonst aktueller User
             int senderId;
             if (customSenderId.HasValue)
@@ -734,73 +731,84 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                 senderId = GetUserIdByLogin(currentLogin);
             }
 
-            // Speichere Nachricht
-            string insertCmd = @"INSERT INTO Messages (ChatId, SenderId, Text, SentAt) 
-                                VALUES (@chatId, @senderId, @text, @sentAt)";
+            // Speichere Nachricht mit GameID statt ChatId
+            string insertCmd = @"INSERT INTO Messages (GameID, SenderId, Text, SentAt) 
+                                VALUES (@gameId, @senderId, @text, @sentAt)";
             using var cmd = new SqliteCommand(insertCmd, connection);
-            cmd.Parameters.AddWithValue("@chatId", chatId);
+            cmd.Parameters.AddWithValue("@gameId", currentGameId); // Verwende currentGameId direkt
             cmd.Parameters.AddWithValue("@senderId", senderId);
             cmd.Parameters.AddWithValue("@text", text);
             cmd.Parameters.AddWithValue("@sentAt", sentAt.ToString("yyyy-MM-dd HH:mm:ss.fffffff"));
             cmd.ExecuteNonQuery();
         }
 
-        private int GetOrCreateChatId(string chatTitle, SqliteConnection connection)
+        // NEUE METHODE: Laden der Nachrichten für ein bestimmtes Spiel
+        private void LoadGameMessagesFromDatabase(int gameId)
         {
-            int userId = GetUserIdByLogin(currentLogin);
-            
-            // Prüfe ob Chat existiert
-            string selectCmd = "SELECT Id FROM Chats WHERE Title = @title AND UserId = @userId";
-            using var selectCommand = new SqliteCommand(selectCmd, connection);
-            selectCommand.Parameters.AddWithValue("@title", chatTitle);
-            selectCommand.Parameters.AddWithValue("@userId", userId);
-            
-            var result = selectCommand.ExecuteScalar();
-            if (result != null)
+            try
             {
-                return Convert.ToInt32(result);
+                string connectionString = "Data Source=vivy.db";
+                using var connection = new SqliteConnection(connectionString);
+                connection.Open();
+
+                int userId = GetUserIdByLogin(currentLogin);
+
+                // Lade alle Nachrichten für dieses Spiel
+                string selectCmd = @"SELECT m.Text, m.SentAt, m.SenderId 
+                                    FROM Messages m
+                                    WHERE m.GameID = @gameId
+                                    ORDER BY m.SentAt ASC";
+
+                using var cmd = new SqliteCommand(selectCmd, connection);
+                cmd.Parameters.AddWithValue("@gameId", gameId);
+
+                richTextBox1.Clear();
+                messageTimestamps.Clear();
+
+                Color mainTextColor = selectedTheme.Trim().StartsWith("White", StringComparison.OrdinalIgnoreCase)
+                    ? Color.Black
+                    : Color.White;
+
+                // Zeige Willkommensnachricht
+                richTextBox1.SelectionColor = Color.MediumPurple;
+                richTextBox1.AppendText("Vivy: ");
+                richTextBox1.SelectionColor = mainTextColor;
+                richTextBox1.AppendText($"Hallo! Ich helfe dir gerne bei Fragen zu '{currentGameName}'. Was möchtest du wissen?\n\n");
+
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    string text = reader.GetString(0);
+                    DateTime sentAt = DateTime.Parse(reader.GetString(1));
+                    int senderId = reader.GetInt32(2);
+
+                    messageTimestamps.Add(sentAt);
+
+                    // SenderId 1 ist KI (Vivy), alle anderen sind Benutzer
+                    string sender = senderId == 1 ? "Vivy" : "User";
+
+                    // Anzeige in RichTextBox
+                    if (sender == "User")
+                    {
+                        richTextBox1.SelectionColor = Color.DeepSkyBlue;
+                        richTextBox1.AppendText("Sie: ");
+                    }
+                    else
+                    {
+                        richTextBox1.SelectionColor = Color.MediumPurple;
+                        richTextBox1.AppendText("Vivy: ");
+                    }
+
+                    richTextBox1.SelectionColor = mainTextColor;
+                    richTextBox1.AppendText(text + "\n\n");
+                }
+
+                richTextBox1.SelectionStart = richTextBox1.Text.Length;
+                richTextBox1.ScrollToCaret();
             }
-            
-            // Erstelle neuen Chat
-            string insertCmd = "INSERT INTO Chats (Title, UserId) VALUES (@title, @userId); SELECT last_insert_rowid();";
-    using var insertCommand = new SqliteCommand(insertCmd, connection);
-    insertCommand.Parameters.AddWithValue("@title", chatTitle);
-    insertCommand.Parameters.AddWithValue("@userId", userId);
-    
-    return Convert.ToInt32(insertCommand.ExecuteScalar());
-        }
-
-        // NEUE METHODE: Laden aller Spiele des Benutzers
-        private void LoadUserGamesFromDatabase()
-        {
-            string connectionString = "Data Source=vivy.db";
-            using var connection = new SqliteConnection(connectionString);
-            connection.Open();
-
-            int userId = GetUserIdByLogin(currentLogin);
-
-            string selectCmd = "SELECT Id, Name FROM BoardGames WHERE UserId = @userId ORDER BY CreatedAt DESC";
-            using var cmd = new SqliteCommand(selectCmd, connection);
-            cmd.Parameters.AddWithValue("@userId", userId);
-
-            listBoxHistory.Items.Clear();
-
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
+            catch (Exception ex)
             {
-                int gameId = reader.GetInt32(0);
-                string gameName = reader.GetString(1);
-                listBoxHistory.Items.Add(gameName);
-            }
-        }
-
-        // GEÄNDERTE METHODE: Laden des ausgewählten Spiels
-        private void listBoxHistory_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            if (listBoxHistory.SelectedItem != null)
-            {
-                string selectedGameName = listBoxHistory.SelectedItem.ToString();
-                LoadGameFromDatabase(selectedGameName);
+                MessageBox.Show($"Fehler beim Laden der Nachrichten: {ex.Message}", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -937,5 +945,46 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                 );
             }
         }
+
+        private void listBoxHistory_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            if (listBoxHistory.SelectedItem is string selectedGame)
+    {
+        LoadGameFromDatabase(selectedGame);
+        if (currentGameId != -1)
+        {
+            LoadGameMessagesFromDatabase(currentGameId);
+        }
+    }
+}
+
+        // Lädt alle Spiele des aktuellen Benutzers aus der Datenbank und zeigt sie in der ListBox an
+private void LoadUserGamesFromDatabase()
+{
+    try
+    {
+        string connectionString = "Data Source=vivy.db";
+        using var connection = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
+        connection.Open();
+
+        int userId = GetUserIdByLogin(currentLogin);
+
+        string selectCmd = "SELECT Name FROM BoardGames WHERE UserId = @userId ORDER BY Name ASC";
+        using var cmd = new Microsoft.Data.Sqlite.SqliteCommand(selectCmd, connection);
+        cmd.Parameters.AddWithValue("@userId", userId);
+
+        using var reader = cmd.ExecuteReader();
+        listBoxHistory.Items.Clear();
+        while (reader.Read())
+        {
+            string gameName = reader.GetString(0);
+            listBoxHistory.Items.Add(gameName);
+        }
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show($"Fehler beim Laden der Spiele: {ex.Message}", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Error);
+    }
+}
     }
 }

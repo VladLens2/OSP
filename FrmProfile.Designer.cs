@@ -54,10 +54,10 @@ namespace Vivy
             panelProfile.Controls.Add(lblNewPassword);
             panelProfile.Controls.Add(txtNewPassword);
             panelProfile.Controls.Add(btnSave);
-            panelProfile.Location = new Point(11, 13);
-            panelProfile.Margin = new Padding(3, 4, 3, 4);
+            panelProfile.Location = new Point(14, 16);
+            panelProfile.Margin = new Padding(4, 5, 4, 5);
             panelProfile.Name = "panelProfile";
-            panelProfile.Size = new Size(526, 267);
+            panelProfile.Size = new Size(658, 334);
             panelProfile.TabIndex = 0;
             // 
             // button1
@@ -67,10 +67,10 @@ namespace Vivy
             button1.FlatAppearance.BorderSize = 0;
             button1.FlatStyle = FlatStyle.Flat;
             button1.ForeColor = Color.FromArgb(0, 126, 249);
-            button1.Location = new Point(497, 0);
-            button1.Margin = new Padding(3, 4, 3, 4);
+            button1.Location = new Point(621, 0);
+            button1.Margin = new Padding(4, 5, 4, 5);
             button1.Name = "button1";
-            button1.Size = new Size(29, 33);
+            button1.Size = new Size(36, 41);
             button1.TabIndex = 9;
             button1.Text = "X";
             button1.UseVisualStyleBackColor = false;
@@ -79,10 +79,10 @@ namespace Vivy
             // 
             picAvatar.BackColor = Color.Transparent;
             picAvatar.BorderStyle = BorderStyle.FixedSingle;
-            picAvatar.Location = new Point(34, 40);
-            picAvatar.Margin = new Padding(3, 4, 3, 4);
+            picAvatar.Location = new Point(42, 50);
+            picAvatar.Margin = new Padding(4, 5, 4, 5);
             picAvatar.Name = "picAvatar";
-            picAvatar.Size = new Size(114, 133);
+            picAvatar.Size = new Size(142, 166);
             picAvatar.SizeMode = PictureBoxSizeMode.Zoom;
             picAvatar.TabIndex = 0;
             picAvatar.TabStop = false;
@@ -94,10 +94,10 @@ namespace Vivy
             btnChangeAvatar.FlatStyle = FlatStyle.Flat;
             btnChangeAvatar.Font = new Font("Bahnschrift", 12F, FontStyle.Bold, GraphicsUnit.Point, 204);
             btnChangeAvatar.ForeColor = Color.FromArgb(46, 51, 73);
-            btnChangeAvatar.Location = new Point(34, 187);
-            btnChangeAvatar.Margin = new Padding(3, 4, 3, 4);
+            btnChangeAvatar.Location = new Point(42, 234);
+            btnChangeAvatar.Margin = new Padding(4, 5, 4, 5);
             btnChangeAvatar.Name = "btnChangeAvatar";
-            btnChangeAvatar.Size = new Size(114, 40);
+            btnChangeAvatar.Size = new Size(142, 50);
             btnChangeAvatar.TabIndex = 1;
             btnChangeAvatar.Text = "Ändern";
             btnChangeAvatar.UseVisualStyleBackColor = false;
@@ -107,9 +107,10 @@ namespace Vivy
             // 
             lblLogin.Font = new Font("Segoe UI", 10F);
             lblLogin.ForeColor = Color.White;
-            lblLogin.Location = new Point(173, 43);
+            lblLogin.Location = new Point(192, 50);
+            lblLogin.Margin = new Padding(4, 0, 4, 0);
             lblLogin.Name = "lblLogin";
-            lblLogin.Size = new Size(114, 31);
+            lblLogin.Size = new Size(142, 39);
             lblLogin.TabIndex = 2;
             lblLogin.Text = "Name:";
             // 
@@ -119,19 +120,20 @@ namespace Vivy
             txtLogin.BorderStyle = BorderStyle.FixedSingle;
             txtLogin.Font = new Font("Segoe UI", 10F);
             txtLogin.ForeColor = Color.White;
-            txtLogin.Location = new Point(297, 40);
-            txtLogin.Margin = new Padding(3, 4, 3, 4);
+            txtLogin.Location = new Point(358, 48);
+            txtLogin.Margin = new Padding(4, 5, 4, 5);
             txtLogin.Name = "txtLogin";
-            txtLogin.Size = new Size(194, 30);
+            txtLogin.Size = new Size(242, 34);
             txtLogin.TabIndex = 3;
             // 
             // lblEmail
             // 
             lblEmail.Font = new Font("Segoe UI", 10F);
             lblEmail.ForeColor = Color.White;
-            lblEmail.Location = new Point(173, 96);
+            lblEmail.Location = new Point(192, 111);
+            lblEmail.Margin = new Padding(4, 0, 4, 0);
             lblEmail.Name = "lblEmail";
-            lblEmail.Size = new Size(114, 31);
+            lblEmail.Size = new Size(142, 39);
             lblEmail.TabIndex = 4;
             lblEmail.Text = "E-mail:";
             // 
@@ -141,19 +143,20 @@ namespace Vivy
             txtEmail.BorderStyle = BorderStyle.FixedSingle;
             txtEmail.Font = new Font("Segoe UI", 10F);
             txtEmail.ForeColor = Color.White;
-            txtEmail.Location = new Point(297, 93);
-            txtEmail.Margin = new Padding(3, 4, 3, 4);
+            txtEmail.Location = new Point(358, 116);
+            txtEmail.Margin = new Padding(4, 5, 4, 5);
             txtEmail.Name = "txtEmail";
-            txtEmail.Size = new Size(194, 30);
+            txtEmail.Size = new Size(242, 34);
             txtEmail.TabIndex = 5;
             // 
             // lblNewPassword
             // 
             lblNewPassword.Font = new Font("Segoe UI", 10F);
             lblNewPassword.ForeColor = Color.White;
-            lblNewPassword.Location = new Point(173, 149);
+            lblNewPassword.Location = new Point(192, 179);
+            lblNewPassword.Margin = new Padding(4, 0, 4, 0);
             lblNewPassword.Name = "lblNewPassword";
-            lblNewPassword.Size = new Size(118, 31);
+            lblNewPassword.Size = new Size(159, 39);
             lblNewPassword.TabIndex = 6;
             lblNewPassword.Text = "Neues Passwort:";
             // 
@@ -163,11 +166,11 @@ namespace Vivy
             txtNewPassword.BorderStyle = BorderStyle.FixedSingle;
             txtNewPassword.Font = new Font("Segoe UI", 10F);
             txtNewPassword.ForeColor = Color.White;
-            txtNewPassword.Location = new Point(297, 147);
-            txtNewPassword.Margin = new Padding(3, 4, 3, 4);
+            txtNewPassword.Location = new Point(358, 180);
+            txtNewPassword.Margin = new Padding(4, 5, 4, 5);
             txtNewPassword.Name = "txtNewPassword";
             txtNewPassword.PasswordChar = '*';
-            txtNewPassword.Size = new Size(194, 30);
+            txtNewPassword.Size = new Size(242, 34);
             txtNewPassword.TabIndex = 7;
             // 
             // btnSave
@@ -177,10 +180,10 @@ namespace Vivy
             btnSave.FlatStyle = FlatStyle.Flat;
             btnSave.Font = new Font("Bahnschrift", 14.25F, FontStyle.Bold);
             btnSave.ForeColor = Color.FromArgb(46, 51, 73);
-            btnSave.Location = new Point(297, 200);
-            btnSave.Margin = new Padding(3, 4, 3, 4);
+            btnSave.Location = new Point(371, 250);
+            btnSave.Margin = new Padding(4, 5, 4, 5);
             btnSave.Name = "btnSave";
-            btnSave.Size = new Size(137, 47);
+            btnSave.Size = new Size(171, 59);
             btnSave.TabIndex = 8;
             btnSave.Text = "Speichern";
             btnSave.UseVisualStyleBackColor = false;
@@ -188,13 +191,13 @@ namespace Vivy
             // 
             // FrmProfile
             // 
-            AutoScaleDimensions = new SizeF(8F, 20F);
+            AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.FromArgb(24, 30, 54);
-            ClientSize = new Size(549, 293);
+            ClientSize = new Size(686, 366);
             Controls.Add(panelProfile);
             FormBorderStyle = FormBorderStyle.None;
-            Margin = new Padding(3, 4, 3, 4);
+            Margin = new Padding(4, 5, 4, 5);
             MaximizeBox = false;
             Name = "FrmProfile";
             StartPosition = FormStartPosition.CenterScreen;
