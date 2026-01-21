@@ -394,6 +394,7 @@
             // richTextBox1
             // 
             richTextBox1.BackColor = Color.FromArgb(46, 51, 73);
+            richTextBox1.BorderStyle = BorderStyle.FixedSingle;
             resources.ApplyResources(richTextBox1, "richTextBox1");
             richTextBox1.ForeColor = Color.White;
             richTextBox1.Name = "richTextBox1";

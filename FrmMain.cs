@@ -143,6 +143,9 @@ namespace Vivy
 
         private void FrmMain_Load(object sender, EventArgs e)
         {
+            // Setze den Benutzernamen
+            Usder.Text = currentLogin;
+            
             LoadAndApplyUserSettings();
             LoadUserGamesFromDatabase(); // Geändert: Lade Spiele statt Chats
 

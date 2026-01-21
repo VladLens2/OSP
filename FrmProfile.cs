@@ -137,7 +137,7 @@ namespace Vivy
             }
             else
             {
-                backColor = Color.FromArgb(46, 51, 73);
+                backColor = Color.FromArgb(24, 30, 54);
                 foreColor = Color.White;
                 buttonBack = Color.FromArgb(24, 30, 54);
                 textBoxBack = Color.FromArgb(46, 51, 73);

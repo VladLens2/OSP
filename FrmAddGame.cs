@@ -112,7 +112,7 @@ namespace Vivy
             }
             else
             {
-                this.BackColor = Color.FromArgb(46, 51, 73);
+                this.BackColor = Color.FromArgb(24, 30, 54);
                 lblName.ForeColor = Color.White;
                 lblRules.ForeColor = Color.White;
             }
