@@ -112,7 +112,11 @@ namespace Vivy
             int nWidthEllipse,
             int nHeightEllipse
         );
+    
 
+
+        // Добавьте поле для хранения выбранной модели
+        private string selectedModel = "phi3:mini";
 
 
         public FrmMain(string login)
@@ -137,6 +141,8 @@ namespace Vivy
             SideButtonTextColor = Color.FromArgb(0, 126, 249);
             PanelElementTextColor = Color.White;
             UserNameTextColor = Color.FromArgb(0, 126, 149);
+ 
+
 
 
 
@@ -634,8 +640,8 @@ namespace Vivy
                 richTextBox1.AppendText("Vivy: ");
                 richTextBox1.SelectionColor = mainTextColor;
 
-                // Zeichen-für-Zeichen-Anzeige mit Streaming
-                IChatClient chatClient = new OllamaApiClient(new Uri("http://localhost:11434/"), "phi3:mini");
+                // ИЗМЕНЕНО: Используем selectedModel вместо жестко закодированной модели
+                IChatClient chatClient = new OllamaApiClient(new Uri("http://localhost:11434/"), selectedModel);
 
                 // System-Prompt mit Spielregeln
                 string systemPrompt = $@"Du bist ein Experte für das Brettspiel '{currentGameName}'. 
@@ -772,7 +778,10 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                     string savedGameRules = currentGameRules;
                     string? selectedGameInList = listBoxHistory.SelectedItem?.ToString();
 
-                    // 1. ZUERST in Datenbank speichern (mit InterfaceLanguage!)
+                    // ДОБАВЛЕНО: Обновляем выбранную модель
+                    selectedModel = model;
+
+                    // 1. ЗUERST в базе данных сохранить (с InterfaceLanguage!)
                     string connectionString = "Data Source=vivy.db";
                     using var connection = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
                     connection.Open();
@@ -940,8 +949,6 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
 
 
 
-
-
         private void btnLogout_Click(object sender, EventArgs e)
         {
             this.Hide();
@@ -1098,13 +1105,16 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
             {
                 string theme = reader.IsDBNull(0) ? "Dark" : reader.GetString(0);
                 bool speak = !reader.IsDBNull(1) && reader.GetInt32(1) == 1;
-                string model = reader.IsDBNull(2) ? "gpt-3.5-turbo" : reader.GetString(2);
+                string model = reader.IsDBNull(2) ? "phi3:mini" : reader.GetString(2);
                 string language = reader.IsDBNull(3) ? "English" : reader.GetString(3);
 
                 cbTheme.SelectedItem = theme;
                 cbSpeakResponses.Checked = speak;
                 cbModel.SelectedItem = model;
                 cbLanguage.SelectedItem = language;
+
+                // ДОБАВЛЕНО: Сохраняем выбранную модель
+                selectedModel = model;
 
                 ApplyTheme(theme);
             }
@@ -1333,7 +1343,7 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
             }
         }
 
-        // GEÄNDERTE METHODE: Spiel löschen (früher btnDeleteChat_Click)
+        // GEÄNDERTE МЕТОДЕ: Spiel löschen (фрühер btnDeleteChat_Click)
         private void btnDeleteChat_Click(object sender, EventArgs e)
         {
             // Prüfen ob ein Spiel ausgewählt ist

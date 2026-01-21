@@ -5684,7 +5684,7 @@
     <value>$this</value>
   </data>
   <data name="&gt;&gt;panelAbout.ZOrder" xml:space="preserve">
-    <value>1</value>
+    <value>2</value>
   </data>
   <data name="btnLogout.ImeMode" type="System.Windows.Forms.ImeMode, System.Windows.Forms">
     <value>NoControl</value>
@@ -5714,16 +5714,10 @@
     <value>0</value>
   </data>
   <data name="cbModel.Items" xml:space="preserve">
-    <value>GPT-3.5</value>
+    <value>phi3:mini</value>
   </data>
   <data name="cbModel.Items1" xml:space="preserve">
-    <value> GPT-4</value>
-  </data>
-  <data name="cbModel.Items2" xml:space="preserve">
-    <value> GPT-4o </value>
-  </data>
-  <data name="cbModel.Items3" xml:space="preserve">
-    <value>GPT-o3-mini‑high</value>
+    <value>gpt-oss:20b</value>
   </data>
   <data name="cbModel.Location" type="System.Drawing.Point, System.Drawing">
     <value>239, 100</value>
@@ -6014,7 +6008,7 @@
     <value>$this</value>
   </data>
   <data name="&gt;&gt;panelSettings.ZOrder" xml:space="preserve">
-    <value>3</value>
+    <value>1</value>
   </data>
   <data name="btnSend.FlatStyle" type="System.Windows.Forms.FlatStyle, System.Windows.Forms">
     <value>Flat</value>
@@ -6340,7 +6334,7 @@
     <value>$this</value>
   </data>
   <data name="&gt;&gt;panelVivy.ZOrder" xml:space="preserve">
-    <value>2</value>
+    <value>3</value>
   </data>
   <metadata name="backgroundWorker1.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
     <value>17, 17</value>

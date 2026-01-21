@@ -389,7 +389,7 @@
             // 
             cbModel.DropDownStyle = ComboBoxStyle.DropDownList;
             cbModel.FormattingEnabled = true;
-            cbModel.Items.AddRange(new object[] { resources.GetString("cbModel.Items"), resources.GetString("cbModel.Items1"), resources.GetString("cbModel.Items2"), resources.GetString("cbModel.Items3") });
+            cbModel.Items.AddRange(new object[] { resources.GetString("cbModel.Items"), resources.GetString("cbModel.Items1") });
             resources.ApplyResources(cbModel, "cbModel");
             cbModel.Name = "cbModel";
             // 
@@ -555,9 +555,9 @@
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.FromArgb(46, 51, 73);
             Controls.Add(pnlNaw);
+            Controls.Add(panelSettings);
             Controls.Add(panelAbout);
             Controls.Add(panelVivy);
-            Controls.Add(panelSettings);
             FormBorderStyle = FormBorderStyle.None;
             Name = "FrmMain";
             Load += FrmMain_Load;
