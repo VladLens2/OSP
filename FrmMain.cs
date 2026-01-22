@@ -35,7 +35,7 @@ namespace Vivy
         private string currentGameName = "";
         private string currentGameRules = "";
 
-        // Поле для процесу Ollama
+        // Feld für den Ollama-Prozess
         private Process? ollamaProcess;
 
         private Color sideButtonTextColor = Color.FromArgb(0, 126, 249);
@@ -115,7 +115,7 @@ namespace Vivy
     
 
 
-        // Добавьте поле для хранения выбранной модели
+        // Feld für die Speicherung des ausgewählten Modells
         private string selectedModel = "phi3:mini";
 
 
@@ -125,7 +125,7 @@ namespace Vivy
 
             currentLogin = login;
 
-            // Event Handler für ListBox hinzufügen (jetzt für Spiele)
+            // Event Handler für ListBox hinzufügen
             listBoxHistory.SelectedIndexChanged += listBoxHistory_SelectedIndexChanged;
 
             AddWindowControlButtons();
@@ -149,17 +149,17 @@ namespace Vivy
 
             RestoreCustomUI();
 
-            // ДОБАВИТЬ: Загрузка аватара при запуске
+            // Avatar beim Start laden
             LoadUserAvatar();
 
-            // Запуск Ollama сервера
+            // Ollama Server starten
             StartOllamaServer();
 
-            // Подписка на событие закрытия формы
+            // Ereignis zum Schließen des Formulars
             this.FormClosing += FrmMain_FormClosing;
         }
 
-        // Запуск Ollama сервера
+        // Ollama Server starten
         private async void StartOllamaServer()
         {
             try
@@ -192,7 +192,7 @@ namespace Vivy
                 ollamaProcess.StartInfo.RedirectStandardError = true;
                 ollamaProcess.StartInfo.WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
-                // Abonnieren der Ausgabe für Diagnose
+                // Ausgabe für Debugger
                 ollamaProcess.OutputDataReceived += (s, e) =>
                 {
                     if (!string.IsNullOrEmpty(e.Data))
@@ -222,7 +222,7 @@ namespace Vivy
 
                     Debug.WriteLine($"Ollama Prozess gestartet (PID: {ollamaProcess.Id})");
 
-                    // WICHTIG: Warten auf vollständige Initialisierung (10-15 Sekunden)
+                    // Warten auf vollständige Initialisierung (10-15 Sekunden)
                     Debug.WriteLine("Warte auf vollständige Server-Initialisierung (dies kann 10-15 Sekunden dauern)...");
 
                     // 15 Sekunden warten für Initialisierung
@@ -262,7 +262,7 @@ namespace Vivy
 
                     Debug.WriteLine("Führe finale Überprüfung durch...");
 
-                    // Finale Überprüfung mit großem Timeout (die einzige Überprüfung!)
+                    // Finale Überprüfung mit großem Timeout
                     if (await IsOllamaRunningAsync(timeoutSeconds: 10))
                     {
                         Debug.WriteLine("✓ Ollama Server erfolgreich gestartet und antwortet!");
@@ -358,7 +358,7 @@ namespace Vivy
             }
         }
 
-        // Überprüfung, ob Ollama läuft (mit konfigurierbarem Timeout)
+        // Überprüfung, ob Ollama läuft
         private async Task<bool> IsOllamaRunningAsync(int timeoutSeconds = 10)
         {
             try
@@ -396,10 +396,10 @@ namespace Vivy
                 {
                     Debug.WriteLine("Stoppe Ollama...");
 
-                    // Получаем ID родительского процесса
+                    // ID des Hauptprozesses abrufen
                     int processId = ollamaProcess.Id;
 
-                    // Закрываем все связанные процессы ollama
+                    // Alle zugehörigen Ollama-Prozesse schließen
                     KillProcessAndChildren(processId);
 
                     ollamaProcess.Dispose();
@@ -409,7 +409,7 @@ namespace Vivy
                 }
                 else
                 {
-                    // Если процесс не отслеживается, ищем все процессы ollama
+                    // Wenn der Prozess nicht verfolgt wird, nach allen Ollama-Prozessen suchen
                     Debug.WriteLine("Suche nach verbleibenden Ollama-Prozessen...");
                     KillAllOllamaProcesses();
                 }
@@ -420,25 +420,25 @@ namespace Vivy
             }
         }
 
-        // Убивает процесс и все его дочерние процессы
+        // Beendet einen Prozess und alle seine Kindprozesse
         private void KillProcessAndChildren(int pid)
         {
             try
             {
-                // Используем ManagementObjectSearcher для поиска дочерних процессов
+                // ManagementObjectSearcher zum Finden von Kindprozessen verwenden
                 var searcher = new System.Management.ManagementObjectSearcher(
                     $"SELECT * FROM Win32_Process WHERE ParentProcessId={pid}");
 
                 var collection = searcher.Get();
 
-                // Рекурсивно закрываем дочерние процессы
+                // Kindprozesse rekursiv schließen
                 foreach (var item in collection)
                 {
                     int childProcessId = Convert.ToInt32(item["ProcessId"]);
                     KillProcessAndChildren(childProcessId);
                 }
 
-                // Закрываем сам процесс
+                // Den Prozess selbst schließen
                 try
                 {
                     Process proc = Process.GetProcessById(pid);
@@ -451,7 +451,7 @@ namespace Vivy
                 }
                 catch (ArgumentException)
                 {
-                    // Процесс уже завершен
+                    // Prozess wurde bereits beendet
                     Debug.WriteLine($"Prozess {pid} bereits beendet");
                 }
             }
@@ -461,7 +461,7 @@ namespace Vivy
             }
         }
 
-        // Закрывает все процессы ollama в системе
+        // Schließt alle Ollama-Prozesse im System
         private void KillAllOllamaProcesses()
         {
             try
@@ -508,7 +508,7 @@ namespace Vivy
             // Setze den Benutzernamen
             Usder.Text = currentLogin;
             LoadAndApplyUserSettings();
-            LoadUserGamesFromDatabase(); // Geändert: Lade Spiele statt Chats
+            LoadUserGamesFromDatabase();
 
             // Rundet die Ecken des Eingabe-Panels
             RoundPanelCorners(panelInput, 10);
@@ -632,7 +632,7 @@ namespace Vivy
                 chatHistory[currentChatTitle].Add(("User", userMessage, sentAt));
                 messageTimestamps.Add(sentAt);
 
-                // Speichere Benutzernachricht in DB (mit aktueller UserId)
+                // Speichere Benutzernachricht in DB
                 SaveMessageToDatabase(currentChatTitle, "User", userMessage, sentAt);
 
                 // Vivy-Label hinzufügen
@@ -640,7 +640,7 @@ namespace Vivy
                 richTextBox1.AppendText("Vivy: ");
                 richTextBox1.SelectionColor = mainTextColor;
 
-                // ИЗМЕНЕНО: Используем selectedModel вместо жестко закодированной модели
+                // Verwende selectedModel anstatt hartcodiertes Modell
                 IChatClient chatClient = new OllamaApiClient(new Uri("http://localhost:11434/"), selectedModel);
 
                 // System-Prompt mit Spielregeln
@@ -724,7 +724,6 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
 
             var avatarPath = cmd.ExecuteScalar() as string;
 
-            // ИСПРАВЛЕНИЕ: Освобождаем старое изображение
             if (picUserAvatar.Image != null && picUserAvatar.Image != Properties.Resources.DefaultAvatar)
             {
                 var oldImage = picUserAvatar.Image;
@@ -736,19 +735,19 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
             {
                 try
                 {
-                    // ИСПРАВЛЕНИЕ: Загрузка через копию в памяти, чтобы не блокировать файл
+                    // Laden über Kopie im Speicher, um Datei nicht zu blockieren
                     using var stream = new System.IO.FileStream(avatarPath, System.IO.FileMode.Open, System.IO.FileAccess.Read);
                     picUserAvatar.Image = Image.FromStream(stream);
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"Ошибка загрузки аватара: {ex.Message}");
+                    Debug.WriteLine($"Fehler beim Laden des Avatars: {ex.Message}");
                     picUserAvatar.Image = Properties.Resources.DefaultAvatar;
                 }
             }
             else
             {
-                // Используем стандартный аватар из ресурсов
+                // Standard-Avatar aus Ressourcen verwenden
                 picUserAvatar.Image = Properties.Resources.DefaultAvatar;
             }
 
@@ -769,19 +768,19 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
 
                 try
                 {
-                    // WICHTIG: Werte VOR dem Neuaufbau speichern
+                    // Werte VOR dem Neuaufbau speichern
                     bool speakEnabled = cbSpeakResponses.Checked;
 
-                    // KRITISCH: Aktuelles Spiel speichern!
+                    // Aktuelles Spiel speichern!
                     int savedGameId = currentGameId;
                     string savedGameName = currentGameName;
                     string savedGameRules = currentGameRules;
                     string? selectedGameInList = listBoxHistory.SelectedItem?.ToString();
 
-                    // ДОБАВЛЕНО: Обновляем выбранную модель
+                    // Ausgewähltes Modell aktualisieren
                     selectedModel = model;
 
-                    // 1. ЗUERST в базе данных сохранить (с InterfaceLanguage!)
+                    // 1.  Daten in der Datenbank speichern
                     string connectionString = "Data Source=vivy.db";
                     using var connection = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
                     connection.Open();
@@ -815,13 +814,13 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                         return;
                     }
 
-                    // 2. Jetzt UI neu aufbauen
+                    // 2. UI neu aufbauen
                     ApplyTheme(theme);
 
                     this.Controls.Clear();
                     InitializeComponent();
 
-                    // WICHTIG: Event Handler WIEDER hinzufügen!
+                    // WICHTIG: Event Handler hinzufügen!
                     listBoxHistory.SelectedIndexChanged += listBoxHistory_SelectedIndexChanged;
 
                     RestoreCustomUI();
@@ -830,10 +829,10 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                     Usder.Text = currentLogin;
                     LoadUserAvatar();
 
-                    // 4. WICHTIG: Spiele neu laden!
+                    // 4. Spiele neu laden!
                     LoadUserGamesFromDatabase();
 
-                    // 5. KRITISCH: Gespeichertes Spiel wiederherstellen!
+                    // 5. Gespeichertes Spiel wiederherstellen!
                     currentGameId = savedGameId;
                     currentGameName = savedGameName;
                     currentGameRules = savedGameRules;
@@ -1113,7 +1112,7 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                 cbModel.SelectedItem = model;
                 cbLanguage.SelectedItem = language;
 
-                // ДОБАВЛЕНО: Сохраняем выбранную модель
+                // Ausgewähltes Modell speichern
                 selectedModel = model;
 
                 ApplyTheme(theme);
@@ -1190,7 +1189,7 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
             using var connection = new SqliteConnection(connectionString);
             connection.Open();
 
-            // Hole SenderId - verwende customSenderId falls angegeben, sonst aktueller User
+            // SenderId holen - verwende customSenderId falls angegeben, sonst aktueller Benutzer
             int senderId;
             if (customSenderId.HasValue)
             {
@@ -1201,18 +1200,18 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                 senderId = GetUserIdByLogin(currentLogin);
             }
 
-            // Speichere Nachricht mit GameID statt ChatId
+            // Speichere Nachricht mit GameID
             string insertCmd = @"INSERT INTO Messages (GameID, SenderId, Text, SentAt) 
                                 VALUES (@gameId, @senderId, @text, @sentAt)";
             using var cmd = new SqliteCommand(insertCmd, connection);
-            cmd.Parameters.AddWithValue("@gameId", currentGameId); // Verwende currentGameId direkt
+            cmd.Parameters.AddWithValue("@gameId", currentGameId); 
             cmd.Parameters.AddWithValue("@senderId", senderId);
             cmd.Parameters.AddWithValue("@text", text);
             cmd.Parameters.AddWithValue("@sentAt", sentAt.ToString("yyyy-MM-dd HH:mm:ss.fffffff"));
             cmd.ExecuteNonQuery();
         }
 
-        // NEUE METHODE: Spiel aus Datenbank laden
+        // Spiel aus Datenbank laden
         private void LoadGameFromDatabase(string gameName)
         {
             try
@@ -1241,7 +1240,7 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
 
                     Debug.WriteLine($"Spiel geladen: ID={currentGameId}, Name={currentGameName}");
 
-                    // WICHTIG: Reader MUSS geschlossen werden, bevor LoadGameMessagesFromDatabase aufgerufen wird!
+                    
                 }
             }
             catch (Exception ex)
@@ -1251,7 +1250,7 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
             }
         }
 
-        // NEUE METHODE: Laden der Nachrichten für ein bestimmtes Spiel
+        // Laden der Nachrichten für ein bestimmtes Spiel
         private void LoadGameMessagesFromDatabase(int gameId)
         {
             try
@@ -1276,7 +1275,7 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                     ? Color.Black
                     : Color.White;
 
-                // WICHTIG: Zähle die Nachrichten
+                // Zähle die Nachrichten
                 int messageCount = 0;
 
                 using var reader = cmd.ExecuteReader();
@@ -1330,7 +1329,7 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
             }
         }
 
-        // GEÄNDERTE METHODE: Neues Spiel hinzufügen (früher btnNewChat_Click)
+        // Neues Spiel hinzufügen
         private void btnNewChat_Click(object sender, EventArgs e)
         {
             using (var addGameForm = new FrmAddGame(currentLogin, selectedTheme))
@@ -1343,7 +1342,7 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
             }
         }
 
-        // GEÄNDERTE МЕТОДЕ: Spiel löschen (фрühер btnDeleteChat_Click)
+        // Spiel löschen
         private void btnDeleteChat_Click(object sender, EventArgs e)
         {
             // Prüfen ob ein Spiel ausgewählt ist
@@ -1453,10 +1452,12 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                     string gameName = reader.GetString(0);
                     listBoxHistory.Items.Add(gameName);
                 }
+                Debug.WriteLine($"Spiele geladen: {listBoxHistory.Items.Count} Einträge gefunden.");
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Fehler beim Laden der Spiele: {ex.Message}", "Vivy", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Debug.WriteLine($"Fehler in LoadUserGamesFromDatabase: {ex.Message}");
             }
         }
 

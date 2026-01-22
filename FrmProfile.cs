@@ -58,7 +58,7 @@ namespace Vivy
         private void btnChangeAvatar_Click(object sender, EventArgs e)
         {
             using OpenFileDialog ofd = new OpenFileDialog();
-            ofd.Filter = "Зображення (*.png;*.jpg;*.jpeg)|*.png;*.jpg;*.jpeg";
+            ofd.Filter = "Bilder (*.png;*.jpg;*.jpeg)|*.png;*.jpg;*.jpeg";
             if (ofd.ShowDialog() == DialogResult.OK)
             {
                 avatarPath = ofd.FileName;
@@ -71,7 +71,7 @@ namespace Vivy
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Не вдалося завантажити зображення: " + ex.Message, "Помилка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("Bild konnte nicht geladen werden: " + ex.Message, "Fehler", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     picAvatar.Image = null;
                 }
 
@@ -84,7 +84,7 @@ namespace Vivy
         {
             if (string.IsNullOrWhiteSpace(txtLogin.Text))
             {
-                MessageBox.Show("Логін не може бути порожнім!", "Помилка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Login darf nicht leer sein!", "Fehler", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -115,7 +115,7 @@ namespace Vivy
                 }
             }
 
-            MessageBox.Show("Профіль оновлено!", "Успіх", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show("Profil aktualisiert!", "Erfolg", MessageBoxButtons.OK, MessageBoxIcon.Information);
             currentLogin = txtLogin.Text;
             this.DialogResult = DialogResult.OK;
             this.Close();
@@ -127,7 +127,7 @@ namespace Vivy
             selectedTheme = theme;
             Color backColor, foreColor, buttonBack, textBoxBack, textBoxFore;
 
-            if (theme == "Світла")
+            if (theme == "White")
             {
                 backColor = Color.WhiteSmoke;
                 foreColor = Color.Black;
