@@ -641,7 +641,7 @@ namespace Vivy
                 richTextBox1.SelectionColor = mainTextColor;
 
                 // Verwende selectedModel anstatt hartcodiertes Modell
-                IChatClient chatClient = new OllamaApiClient(new Uri("http://localhost:11434/"), selectedModel);
+                IChatClient chatClient = new OllamaApiClient(new Uri("http://localhost:11434/"), "phi3:mini");
 
                 // System-Prompt mit Spielregeln
                 string systemPrompt = $@"Du bist ein Experte für das Brettspiel '{currentGameName}'. 
