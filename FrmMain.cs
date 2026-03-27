@@ -1357,11 +1357,13 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                 return;
             }
 
-            string gameToDelete = listBoxHistory.SelectedItem.ToString();
+            string gameToDelete = listBoxHistory.SelectedItem.ToString() ?? string.Empty;
 
             // Bestätigung vom Benutzer einholen
             var result = MessageBox.Show(
-                $"Möchten Sie das Spiel '{gameToDelete}' wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+                $"Möchten Sie das Spiel '{gameToDelete}' wirklich löschen?\n\n" +
+                $"Alle zugehörigen Nachrichten werden ebenfalls gelöscht.\n" +
+                $"Diese Aktion kann nicht rückgängig gemacht werden.",
                 "Spiel löschen",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning
@@ -1378,12 +1380,53 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
 
                 int userId = GetUserIdByLogin(currentLogin);
 
-                // Lösche das Spiel
-                string deleteGameCmd = "DELETE FROM BoardGames WHERE Name = @name AND UserId = @userId";
-                using var deleteCmd = new SqliteCommand(deleteGameCmd, connection);
-                deleteCmd.Parameters.AddWithValue("@name", gameToDelete);
-                deleteCmd.Parameters.AddWithValue("@userId", userId);
-                deleteCmd.ExecuteNonQuery();
+                // Zuerst die GameID ermitteln
+                string getGameIdCmd = "SELECT Id FROM BoardGames WHERE Name = @name AND UserId = @userId";
+                using var getIdCmd = new SqliteCommand(getGameIdCmd, connection);
+                getIdCmd.Parameters.AddWithValue("@name", gameToDelete);
+                getIdCmd.Parameters.AddWithValue("@userId", userId);
+                
+                var gameIdResult = getIdCmd.ExecuteScalar();
+                if (gameIdResult == null)
+                {
+                    MessageBox.Show(
+                        "Das Spiel wurde nicht in der Datenbank gefunden.",
+                        "Fehler",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+                    return;
+                }
+
+                int gameIdToDelete = Convert.ToInt32(gameIdResult);
+
+                // Zuerst alle Nachrichten löschen, die zu diesem Spiel gehören
+                string deleteMessagesCmd = "DELETE FROM Messages WHERE GameID = @gameId";
+                using var deleteMessagesCommand = new SqliteCommand(deleteMessagesCmd, connection);
+                deleteMessagesCommand.Parameters.AddWithValue("@gameId", gameIdToDelete);
+                int messagesDeleted = deleteMessagesCommand.ExecuteNonQuery();
+
+                Debug.WriteLine($"Gelöscht: {messagesDeleted} Nachrichten für GameID={gameIdToDelete}");
+
+                // Dann das Spiel löschen
+                string deleteGameCmd = "DELETE FROM BoardGames WHERE Id = @gameId AND UserId = @userId";
+                using var deleteGameCommand = new SqliteCommand(deleteGameCmd, connection);
+                deleteGameCommand.Parameters.AddWithValue("@gameId", gameIdToDelete);
+                deleteGameCommand.Parameters.AddWithValue("@userId", userId);
+                int gamesDeleted = deleteGameCommand.ExecuteNonQuery();
+
+                if (gamesDeleted == 0)
+                {
+                    MessageBox.Show(
+                        "Das Spiel konnte nicht gelöscht werden.",
+                        "Fehler",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+                    return;
+                }
+
+                Debug.WriteLine($"Spiel gelöscht: GameID={gameIdToDelete}, Name={gameToDelete}");
 
                 // Entferne aus der ListBox
                 listBoxHistory.Items.Remove(gameToDelete);
@@ -1401,7 +1444,7 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
                 }
 
                 MessageBox.Show(
-                    "Spiel erfolgreich gelöscht!",
+                    $"Spiel '{gameToDelete}' und {messagesDeleted} Nachricht(en) erfolgreich gelöscht!",
                     "Vivy",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information
@@ -1409,8 +1452,11 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
             }
             catch (Exception ex)
             {
+                Debug.WriteLine($"Fehler beim Löschen: {ex.Message}");
+                Debug.WriteLine($"StackTrace: {ex.StackTrace}");
+                
                 MessageBox.Show(
-                    $"Fehler beim Löschen des Spiels: {ex.Message}",
+                    $"Fehler beim Löschen des Spiels:\n\n{ex.Message}",
                     "Vivy",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error
@@ -1465,7 +1511,7 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
         {
             var psi = new ProcessStartInfo
             {
-                FileName = "https://ollama.com",
+                FileName = "https://github.com/VladLens2/OSP",
                 UseShellExecute = true
             };
             Process.Start(psi);
@@ -1475,7 +1521,7 @@ Wenn eine Frage NICHTS mit diesem Brettspiel zu tun hat, antworte höflich:
         {
             var psi = new ProcessStartInfo
             {
-                FileName = "https://github.com/VladLens2/OSP",
+                FileName = "https://ollama.com",
                 UseShellExecute = true
             };
             Process.Start(psi);
